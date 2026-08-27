@@ -63,30 +63,6 @@ from a previous week, where it silently 404s every asset on the live site.
   sharing a top-level name is a redeclaration error. End every standalone
   script with `export {};`.
 
-## User-facing prose is the complement of the artefact
-
-Every string a user can reach: on-screen copy, labels, empty and end states,
-the page description a link preview shows, alt text. Prose is not there to
-describe the thing; it carries the remainder — what *this* reader, at *this*
-moment, does not already have. A player looking at the game has the game.
-Someone seeing a link preview has not opened it. Someone on a screen reader
-cannot see it.
-
-- **Delete any sentence the reader could get by looking, or by one
-  interaction.** Not shorten — delete. This week that rule is also the spec's
-  no-tutorial line, so it has no exceptions at all on screen.
-- **Duplication is the same defect it is in code, and the cost is drift.** Copy
-  that restates a fact the artefact owns goes quietly wrong when that fact
-  changes. Prose cannot factor a duplicate out, only delete it.
-- **A specialist term has to pay the reader back** — a name they can search for
-  when they want more. Otherwise the plain-words version wins, even when longer.
-- **The artefact never justifies itself.** A sentence defending a design
-  decision is rationale wearing user-facing clothes; it belongs in PROCESS.md
-  or a commit body. Test: would this sentence exist if the thing had simply
-  always been this way?
-- **A section that exists asks to be filled.** Size the space to the copy that
-  earns its way in, not the other way round.
-
 ## Working rules
 
 - **Never commit a red build, typecheck, or a test that used to pass.** The one
