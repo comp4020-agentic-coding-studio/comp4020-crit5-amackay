@@ -1,34 +1,142 @@
-# COMP4020 prototype
+# A game — agent harness
 
-Your starter repo for a COMP4020 prototype: a static site in HTML/CSS/TypeScript
-that builds to plain HTML/CSS/JS and deploys to GitHub Pages. The deployed site
-is what gets marked, not this repo.
+A COMP4020 prototype: a tiny browser game that teaches itself. Static site,
+Astro, deployed to GitHub Pages. **The deployed site is what gets judged** —
+not this repo.
 
-The
-[course website](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/)
-publishes this deliverable's brief and spec, and this repo's name tells you
-which deliverable applies. Read both before you plan or build.
+The brief and spec are published on the course site. Read them there; a
+paraphrase here would be one more thing to keep true. `spec/README.md` says how
+the checks relate to the spec.
 
-## The link-preview card
+## Two things this harness cannot do: learn the game, and feel it
 
-`public/card.png` (1200x630) is the image a shared link shows; `index.html`'s
-head points at it. Replace it and the `description` meta, and copy the head
-block into any new page. The card URL resolves against the page that names it,
-like any link --- `./card.png` is wrong one directory down, and nothing in CI
-checks it, so the deployed head is the only place a broken one shows up.
+This week the gap between what a test can hold and what only a person can is
+the point of the exercise, so name it rather than working around it.
+
+- **A green suite says nothing about whether the game teaches itself.** Tests
+  can establish that a wrong move ends the round; only a stranger's hands can
+  tell you whether the opening screen made the first move obvious, or whether
+  the ending felt earned rather than arbitrary.
+- **So ask for a play, and say what you want watched.** When a change affects
+  how the game reads or feels — pacing, difficulty, the first ten seconds —
+  stop and say so rather than reporting the tests green and moving on.
+- **Keep the rules behind a seam.** State transitions, scoring, collision,
+  win/loss conditions: plain functions taking state and returning state, with
+  rendering and input at the edge. A rule bug and a rendering bug must never be
+  confusable, and the spec's "one rule under a focused automated test" only
+  works if a rule is a thing you can call.
+- **jsdom has no layout**, so every `getBoundingClientRect()` is zero-sized,
+  `elementFromPoint` is useless, and there is no canvas. Any client-coordinate
+  arithmetic divides by zero and the `NaN` propagates silently. Anything a test
+  needs to drive must be reachable without pixel geometry.
+- **`requestAnimationFrame` does not tick on its own under test.** A game loop
+  driven by rAF needs the step to be a callable function taking a delta, so the
+  test advances time explicitly. Never make wall-clock time a dependency of a
+  rule.
+- **No instructions anywhere is a spec line, and it binds this harness too.**
+  No how-to-play modal, no instructions page, nothing in the README standing in
+  for either. If a change needs a sentence of explanation to be usable, the
+  change is wrong.
+
+## The stack: Astro, base path and all
+
+`astro.config.ts` sets `base: "/comp4020-crit5-amackay"`, and the dev server
+serves under it too, so a path bug reproduces locally instead of only on the
+live URL. **`http://localhost:4321/` returning 404 is correct**; the site is at
+`/comp4020-crit5-amackay/`. The base is re-derived for this repo — never copied
+from a previous week, where it silently 404s every asset on the live site.
+
+- **Links and asset paths must be relative, or prefixed with
+  `import.meta.env.BASE_URL`.** A root-absolute `/foo.png` looks fine locally
+  and 404s on Pages.
+- **`BASE_URL` carries no trailing slash here.** Joining it naively yields
+  `.../comp4020-crit5-amackaycard.png`.
+- **The invariants check the share card is *present*, not that it *resolves*.**
+  A broken card URL ships green — read the built head.
+- **`public/` is fetch-by-URL only**, and jsdom has no origin to resolve a
+  relative `fetch` against, so anything in there is out of reach of the spec
+  tests. Data the page needs belongs in `src/`, imported.
+- **Commit `pnpm-lock.yaml` with any dependency change**; CI installs
+  `--frozen-lockfile`.
+- **`astro check` typechecks `scripts/` as one global scope.** A `scripts/*.ts`
+  file with no import or export is a *global* script to TS, so two of them
+  sharing a top-level name is a redeclaration error. End every standalone
+  script with `export {};`.
+
+## User-facing prose is the complement of the artefact
+
+Every string a user can reach: on-screen copy, labels, empty and end states,
+the page description a link preview shows, alt text. Prose is not there to
+describe the thing; it carries the remainder — what *this* reader, at *this*
+moment, does not already have. A player looking at the game has the game.
+Someone seeing a link preview has not opened it. Someone on a screen reader
+cannot see it.
+
+- **Delete any sentence the reader could get by looking, or by one
+  interaction.** Not shorten — delete. This week that rule is also the spec's
+  no-tutorial line, so it has no exceptions at all on screen.
+- **Duplication is the same defect it is in code, and the cost is drift.** Copy
+  that restates a fact the artefact owns goes quietly wrong when that fact
+  changes. Prose cannot factor a duplicate out, only delete it.
+- **A specialist term has to pay the reader back** — a name they can search for
+  when they want more. Otherwise the plain-words version wins, even when longer.
+- **The artefact never justifies itself.** A sentence defending a design
+  decision is rationale wearing user-facing clothes; it belongs in PROCESS.md
+  or a commit body. Test: would this sentence exist if the thing had simply
+  always been this way?
+- **A section that exists asks to be filled.** Size the space to the copy that
+  earns its way in, not the other way round.
+
+## Working rules
+
+- **Never commit a red build, typecheck, or a test that used to pass.** The one
+  exception: a spec test written before the thing it describes is *meant* to be
+  red. Red-to-green is the record of the work.
+- **A spec test encodes the spec, not the artefact.** When the game changes
+  identity, a spec test may need editing — but only where it reached for a
+  detail of the old design, never to soften what the spec asks. Change it in
+  its own commit, say in the body which line of the spec it still serves, and
+  never let the edit and the feature that makes it pass land together.
+- Run `pnpm check` before pushing, and open the page in a browser (the
+  `agent-browser` CLI works). The rendered page is the truth; this week, the
+  *played* page is.
+- **A value written in a comment is not evidence.** Evaluate the function.
+- Paths written anywhere in this repo are relative to the repo root. Absolute
+  paths tie a public repo to one machine.
+- **Commit as you go** — "the repo shows the process" is a spec line, so the
+  history is part of the contract. `PROCESS.md` is a short reading guide citing
+  commits, not an essay.
+- **`reflections/crit-5.md` is the repo owner's alone.** Never draft, edit, pad
+  or start it. If it is missing near the cutoff, say so — that is the whole
+  intervention.
 
 ## The checks
 
-`pnpm check` runs them, and `pnpm check:evidence` is the extra gate before you
-ship. CI runs the same plus links, secrets and the deploy.
+`pnpm check` is the loop; read the failure, which names the contract. Things it
+won't tell you:
 
-`spec/README.md`, `PROCESS.md` and `reflections/README.md` are in this repo and
-say what they are for.
+- **CI is gated on the repo being public** (`!github.event.repository.private`)
+  while the repo is private, so nothing runs on push until the cutoff flip.
+  Once public, a run deploys `dist/` to Pages and verifies the live URL
+  returns 200.
+- **`pnpm check:evidence`** requires the reflection at exactly
+  `reflections/crit-5.md`, `PROCESS.md`'s commit citations to resolve, and the
+  share card not to be the starter one.
+- **`public/card.png` ships from the template** and must be replaced, along
+  with the `description` meta, before shipping.
+- **`.githooks/pre-commit`** blocks key-shaped strings before they are pushed.
+  The course API key lives in gitignored `.claude/`; keep it there.
+- **Nothing here renders at the marked sizes.** The site is judged live in
+  Chrome at exactly **1920×1080** and **390×844**, both fully marked, and the
+  spec asks for the finished game to be played at both. The phone one is where
+  a size-dependent design breaks — and a game with keyboard-only input has no
+  first move there at all.
+
+Nothing here measures accessibility, performance, or whether the game is any
+good.
 
 ## This file is yours
 
-A starting point, not a rulebook: what you add to it is the harness, and the
-harness is assessed. This file and the sensors you wire into `check` carry
-across the course --- both come with you into next week's repo. The prototype
-doesn't: source, and the tests answering this week's published spec, stay
-behind. `spec/README.md` draws the line.
+When something bites — a convention the work has to hold to, a sensor that
+keeps catching you out, a fact about Astro or the browser that is easy to get
+wrong — write it down here. Growing this file is the work.
