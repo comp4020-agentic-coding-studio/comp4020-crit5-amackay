@@ -77,6 +77,9 @@ from a previous week, where it silently 404s every asset on the live site.
   `agent-browser` CLI works). The rendered page is the truth; this week, the
   *played* page is.
 - **A value written in a comment is not evidence.** Evaluate the function.
+- **The `description` meta and any `alt` text are the exception to the
+  no-prose rule** — the reader has not seen the page yet, so describing it
+  is the whole job. Everywhere a player can already look, delete instead.
 - Paths written anywhere in this repo are relative to the repo root. Absolute
   paths tie a public repo to one machine.
 - **Commit as you go** — "the repo shows the process" is a spec line, so the
