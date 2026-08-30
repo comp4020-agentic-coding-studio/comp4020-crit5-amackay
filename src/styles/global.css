@@ -40,3 +40,33 @@ h1 {
   inset: 0;
   touch-action: none;
 }
+
+/* Balls are elements rather than canvas: at N <= 20 the cost is irrelevant, the
+   level-change zoom becomes one transform, and a test can find them. Sizes and
+   positions are written by render.ts, never declared here. */
+.ball {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 28%, #fdfefe 0%, #cfd8e0 18%, #8b97a4 55%, #4a5560 82%, #313a44 100%);
+  box-shadow:
+    0 0.35em 0.7em rgb(0 0 0 / 45%),
+    inset -0.12em -0.18em 0.35em rgb(0 0 0 / 35%);
+  will-change: transform;
+}
+
+.ball.held {
+  box-shadow:
+    0 1.1em 1.6em rgb(0 0 0 / 55%),
+    inset -0.12em -0.18em 0.35em rgb(0 0 0 / 30%);
+}
+
+.box {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 2px solid rgb(232 236 240 / 55%);
+  will-change: transform;
+}
