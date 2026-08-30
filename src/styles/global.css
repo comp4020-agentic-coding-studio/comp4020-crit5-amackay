@@ -1,16 +1,42 @@
+:root {
+  --ground: #101418;
+  --ink: #e8ecf0;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
-  padding: 2rem;
   font-family: system-ui, sans-serif;
-  line-height: 1.6;
-  color: #1a1a1a;
+  background: var(--ground);
+  color: var(--ink);
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 main {
-  max-width: 40rem;
-  margin: 0 auto;
+  display: block;
 }
 
-a {
-  color: #0b5fff;
+/* The title names the game and then gets out of the way; the game is the
+   whole screen. */
+h1 {
+  position: fixed;
+  top: 0.6rem;
+  left: 0.9rem;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.45;
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+  touch-action: none;
 }

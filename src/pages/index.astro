@@ -2,19 +2,14 @@
 import Layout from "../layouts/Layout.astro";
 ---
 
-<Layout title="COMP4020 prototype">
-  <header>
-    <nav aria-label="Primary">
-      <a href="./">Home</a>
-    </nav>
-  </header>
+<Layout
+  title="Tighter"
+  description="A puzzle about circle packing. Drag the balls into an arrangement, close the square box around them, and see how small it goes. Ten levels, one more ball each time."
+>
+  <nav aria-label="Levels" id="levels"></nav>
   <main>
-    <h1>COMP4020 prototype</h1>
-    <p>
-      Replace this with your prototype. This week's brief is on the course
-      website; <code>spec/README.md</code> explains how the checks in this repo
-      relate to it.
-    </p>
+    <h1>Tighter</h1>
+    <div id="stage"></div>
   </main>
   <script src="../scripts/main.ts"></script>
 </Layout>
