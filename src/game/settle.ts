@@ -10,13 +10,8 @@ const CONTACT_DISTANCE = 2 * BALL_RADIUS;
 /** Ramp width on either side of a wall line, per IDEA.md. */
 const RAMP = BALL_RADIUS;
 
-/**
- * Overhang at which a ball has cleared the ramp entirely and the wall lets go.
- * Depth is measured from the ball's near edge touching the wall line, so it
- * runs 0 at rest against the wall, 1 with the centre on the line, and 2 with
- * the whole ball outside — the far end of the incline.
- */
-const RAMP_SPAN = 2 * RAMP;
+/** Contact distance for the fingertip: it has to actually be on a ball. */
+const PUSHER_REACH = BALL_RADIUS;
 
 /** Below this, two centres count as coincident and need a jitter direction. */
 const DEGENERATE = 1e-9;
@@ -55,6 +50,15 @@ export interface SettleOptions {
   pinned?: number | null;
   /** Dragging on empty background bumps balls aside. */
   pusher?: Pusher | null;
+  /**
+   * Half-extents of the visible area, in world units. Unlike a wall, this is a
+   * hard stop and not a ridge: a ball may be pushed out of the box, but losing
+   * one off the edge of the screen has to be impossible rather than merely
+   * unlikely, so it is a clamp on position rather than another force to
+   * overcome. Omitted where there is no view to speak of, which includes every
+   * test of the rules on their own.
+   */
+  bounds?: { x: number; y: number } | null;
   tolerance?: number;
   maxIterations?: number;
 }
@@ -142,34 +146,40 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
     }
   }
 
-  // Ball against wall. The ramp is the whole wall model: there is no hard
-  // collision, so a ball driven at a wall is shoved off it rather than clipped.
-  //
-  // The incline is one radius either side of the wall line, per IDEA.md, which
-  // means it ends: a ball whose near edge has cleared the line by a full radius
-  // is outside the box and stays there. The wall is a hill the player can push
-  // a ball over, not a fence — pushing balls out is how dragging the box too
-  // tight teaches itself.
+  // Ball against wall. A wall is a ridge, not a fence: an incline one radius
+  // wide on each side of the line, both sides pushing away from the line. The
+  // peak is where the ball's centre sits on the line, and the force falls to
+  // nothing a radius either side of it — so a ball rests with its outer edge on
+  // the line when it is inside, and with its inner edge on the line when it is
+  // outside. Between those two rest positions is a hill the player can push a
+  // ball over, which is how dragging the box too tight teaches itself.
   const half = opts.side / 2;
   for (let i = 0; i < n; i++) {
     if (i === lifted) continue;
     const ball = balls[i]!;
-    const penetrations = [
-      { axis: 0, depth: ball.x + BALL_RADIUS - half, sign: -1 },
-      { axis: 0, depth: -half - (ball.x - BALL_RADIUS), sign: 1 },
-      { axis: 1, depth: ball.y + BALL_RADIUS - half, sign: -1 },
-      { axis: 1, depth: -half - (ball.y - BALL_RADIUS), sign: 1 },
-    ];
-    for (const { axis, depth, sign } of penetrations) {
-      if (depth <= 0) continue;
-      // Residual counts the whole overhang however far out the ball is: the box
-      // does not contain it, and compacting must never call that a fit.
-      if (depth > residual) residual = depth;
-      if (depth >= RAMP_SPAN) continue; // over the hill and away
-      if (axis === 0) fx[i]! += sign * depth;
-      else fy[i]! += sign * depth;
-      contacts[i]!++;
-      wallForce += depth;
+    for (const [axis, centre] of [
+      [0, ball.x],
+      [1, ball.y],
+    ] as const) {
+      // Containment is a separate question from force: the box does not hold a
+      // ball whose far edge is past the line, however the ridge is pushing it,
+      // and compacting must never call that a fit.
+      const overhang = Math.abs(centre) + BALL_RADIUS - half;
+      if (overhang > residual) residual = overhang;
+
+      for (const wall of [half, -half]) {
+        const offset = centre - wall;
+        if (Math.abs(offset) >= RAMP) continue;
+        const magnitude = RAMP - Math.abs(offset);
+        // Balanced exactly on the ridge, a ball falls inward. IDEA.md asks for
+        // exact alignments to be broken; inward is deterministic and needs no
+        // jitter, and it is the kinder of the two answers.
+        const away = Math.abs(offset) < DEGENERATE ? -Math.sign(wall) : Math.sign(offset);
+        if (axis === 0) fx[i]! += away * magnitude;
+        else fy[i]! += away * magnitude;
+        contacts[i]!++;
+        wallForce += magnitude;
+      }
     }
   }
 
@@ -181,8 +191,10 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
       const dx = balls[i]!.x - pusher.x;
       const dy = balls[i]!.y - pusher.y;
       const distance = Math.hypot(dx, dy);
-      if (distance >= CONTACT_DISTANCE) continue;
-      const overlap = CONTACT_DISTANCE - distance;
+      // The pointer is a point, not a ball: it has to actually be on a ball to
+      // shove it, rather than nudging things from a radius away.
+      if (distance >= PUSHER_REACH) continue;
+      const overlap = PUSHER_REACH - distance;
       const direction =
         distance < DEGENERATE ? jitterDirection(i, i) : { x: dx / distance, y: dy / distance };
       fx[i]! += direction.x * overlap;
@@ -215,22 +227,31 @@ export function settleOnce(balls: readonly Ball[], opts: SettleOptions): PassRes
 
   let maxDisplacement = 0;
 
+  const bounds = opts.bounds ?? null;
+
   for (let i = 0; i < balls.length; i++) {
     const ball = balls[i]!;
     // A carried ball is moved by the pointer, not by us; a descending one has
     // its position in plan fixed while everything else gets out of its way.
-    if (i === lifted || i === pinned) {
-      moved.push({ x: ball.x, y: ball.y });
-      continue;
+    // Both are still held on screen.
+    let x = ball.x;
+    let y = ball.y;
+    if (i !== lifted && i !== pinned) {
+      // Dividing by the contact count keeps a pass non-expansive inside a dense
+      // cluster while leaving the isolated pair exact.
+      const alpha = ALPHA / Math.max(1, contacts[i]!);
+      x += alpha * fx[i]!;
+      y += alpha * fy[i]!;
     }
-    // Dividing by the contact count keeps a pass non-expansive inside a dense
-    // cluster while leaving the isolated pair exact.
-    const alpha = ALPHA / Math.max(1, contacts[i]!);
-    const dx = alpha * fx[i]!;
-    const dy = alpha * fy[i]!;
-    const displacement = Math.hypot(dx, dy);
+    if (bounds) {
+      x = Math.min(bounds.x, Math.max(-bounds.x, x));
+      y = Math.min(bounds.y, Math.max(-bounds.y, y));
+    }
+    // Measured after the clamp, so a ball pinned against the edge reads as
+    // settled rather than as forever moving.
+    const displacement = Math.hypot(x - ball.x, y - ball.y);
     if (displacement > maxDisplacement) maxDisplacement = displacement;
-    moved.push({ x: ball.x + dx, y: ball.y + dy });
+    moved.push({ x, y });
   }
 
   return { balls: moved, maxDisplacement, residual, wallForce };

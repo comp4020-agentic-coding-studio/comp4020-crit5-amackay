@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { ballAt, fitView, FALLBACK_SCALE, screenToWorld, worldToScreen } from "./view";
+import {
+  ballAt,
+  fitView,
+  FALLBACK_SCALE,
+  screenToWorld,
+  viewBounds,
+  worldToScreen,
+} from "./view";
 
 describe("fitView", () => {
   it("puts the world origin at the centre of the surface", () => {
@@ -11,7 +18,28 @@ describe("fitView", () => {
   it("fits the box inside the shorter axis", () => {
     const view = fitView(10, 800, 600);
     expect(10 * view.scale).toBeLessThanOrEqual(600);
-    expect(10 * view.scale).toBeGreaterThan(400);
+  });
+
+  it("leaves room outside the box for a ball shed over a wall", () => {
+    // This is the contract the margin exists for, and it is what stops the
+    // box being able to expel a ball off the edge of the screen. The old
+    // fill-fraction this replaced said nothing about it.
+    for (const side of [2, 6, 8, 14]) {
+      const view = fitView(side, 800, 600);
+      const bounds = viewBounds(view, 800, 600)!;
+      // A ball shed over a wall rests with its centre one radius past the line.
+      expect(bounds.y, `side ${side}`).toBeGreaterThanOrEqual(side / 2 + 1);
+      expect(bounds.x, `side ${side}`).toBeGreaterThanOrEqual(side / 2 + 1);
+    }
+  });
+
+  it("reports no bounds at all for an unlaid-out surface", () => {
+    // Bounds of zero would clamp every ball onto the origin, and jsdom reports
+    // every element as zero-sized.
+    const view = fitView(10, 0, 0);
+    expect(viewBounds(view, 0, 0)).toBeNull();
+    expect(viewBounds(view, 800, 0)).toBeNull();
+    expect(viewBounds(view, 0, 600)).toBeNull();
   });
 
   it("never returns a zero scale for an unlaid-out surface", () => {

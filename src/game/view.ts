@@ -19,8 +19,13 @@ export interface ViewTransform {
  */
 export const FALLBACK_SCALE = 10;
 
-/** How much of the shorter screen axis the box is allowed to fill. */
-const FILL = 0.82;
+/**
+ * Clear space kept outside the box on the shorter screen axis, in ball radii.
+ * A ball pushed over a wall rests one radius past the line and occupies one
+ * more, so anything under 2 would let the box expel a ball off screen. The
+ * extra half is so a ball out there does not sit flush against the edge.
+ */
+export const VIEW_MARGIN = 2.5;
 
 /**
  * Fit a box of the given side into a surface of the given pixel size.
@@ -32,7 +37,8 @@ export function fitView(side: Side, widthPx: number, heightPx: number): ViewTran
   const usableWidth = Number.isFinite(widthPx) && widthPx > 0 ? widthPx : 0;
   const usableHeight = Number.isFinite(heightPx) && heightPx > 0 ? heightPx : 0;
   const shorter = Math.min(usableWidth, usableHeight);
-  const scale = shorter > 0 && side > 0 ? (shorter * FILL) / side : FALLBACK_SCALE;
+  const framed = side + 2 * VIEW_MARGIN;
+  const scale = shorter > 0 && framed > 0 ? shorter / framed : FALLBACK_SCALE;
   return {
     originX: usableWidth / 2,
     originY: usableHeight / 2,
@@ -71,4 +77,25 @@ export function ballAt(balls: readonly Ball[], point: Ball): number | null {
     }
   }
   return closest;
+}
+
+/**
+ * Half-extents of the visible area in world units, inset by a ball radius so a
+ * ball resting on the bound is fully on screen.
+ *
+ * Returns null when the surface has not been laid out. A zero-sized surface
+ * would otherwise yield bounds of zero and clamp every ball onto the origin —
+ * which is exactly what jsdom reports, so this is the difference between the
+ * rules being testable and every test collapsing the arrangement to a point.
+ */
+export function viewBounds(
+  view: ViewTransform,
+  widthPx: number,
+  heightPx: number,
+): { x: number; y: number } | null {
+  if (!(widthPx > 0) || !(heightPx > 0) || !(view.scale > 0)) return null;
+  return {
+    x: Math.max(0, widthPx / (2 * view.scale) - BALL_RADIUS),
+    y: Math.max(0, heightPx / (2 * view.scale) - BALL_RADIUS),
+  };
 }

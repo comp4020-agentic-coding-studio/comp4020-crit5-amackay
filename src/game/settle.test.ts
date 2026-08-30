@@ -89,14 +89,36 @@ describe("walls", () => {
     expect(result.balls[0]!.x).toBeCloseTo(side / 2 - 1, 6);
   });
 
-  it("lets a ball that has cleared the ramp stay outside", () => {
-    // The incline is one radius either side of the wall line and then it ends,
-    // per IDEA.md. A wall is a hill a ball can be pushed over, not a fence, and
-    // being able to drop a ball outside is what makes dragging the box too
-    // tight legible rather than merely impossible.
+  it("sheds a ball off the inner slope back into the box", () => {
+    // A wall is a ridge with an incline a radius wide on each side, both sides
+    // pushing away from the line. Inside the line, away means in.
     const side = 10;
+    for (const x of [4.05, 4.4, 4.9, 4.99]) {
+      const result = settle([{ x, y: 0 }], { side, tolerance: PRECISE });
+      expect(result.balls[0]!.x, `from x = ${x}`).toBeCloseTo(side / 2 - 1, 6);
+    }
+  });
+
+  it("sheds a ball off the outer slope right out of the box", () => {
+    // Outside the line, away means out. This is the half that makes a wall a
+    // hill rather than a fence, and it is what lets a box dragged too tight
+    // throw balls out instead of merely refusing to close.
+    const side = 10;
+    for (const x of [5.01, 5.4, 5.9, 5.99]) {
+      const result = settle([{ x, y: 0 }], { side, tolerance: PRECISE });
+      expect(result.balls[0]!.x, `from x = ${x}`).toBeCloseTo(side / 2 + 1, 6);
+    }
+  });
+
+  it("drops a ball balanced exactly on the ridge inward", () => {
+    // IDEA.md asks for an exact alignment to be broken rather than to persist.
+    const result = settle([{ x: 5, y: 0 }], { side: 10, tolerance: PRECISE });
+    expect(result.balls[0]!.x).toBeCloseTo(4, 6);
+  });
+
+  it("leaves a ball well clear of the ridge alone", () => {
     const outside = { x: 20, y: -14 };
-    const result = settle([outside], { side, tolerance: PRECISE });
+    const result = settle([outside], { side: 10, tolerance: PRECISE });
     expect(result.balls[0]).toEqual(outside);
   });
 
@@ -104,14 +126,6 @@ describe("walls", () => {
     // No force on it, but the box plainly does not contain it, and compacting
     // must never call that a fit.
     expect(measure([{ x: 20, y: 0 }], { side: 10 }).residual).toBeGreaterThan(2);
-  });
-
-  it("pushes a ball back in from anywhere on the ramp", () => {
-    const side = 10;
-    for (const x of [4.1, 4.6, 5, 5.5, 5.9]) {
-      const result = settle([{ x, y: 0 }], { side, tolerance: PRECISE });
-      expect(result.balls[0]!.x, `from x = ${x}`).toBeCloseTo(side / 2 - 1, 6);
-    }
   });
 
   it("leaves every ball inside a box that comfortably fits them", () => {
@@ -215,8 +229,52 @@ describe("held and pushed", () => {
   it("bumps balls away from a pusher without moving the pusher", () => {
     const balls: Ball[] = [{ x: 0.3, y: 0 }];
     const result = settle(balls, { side: ROOMY, pusher: { x: 0, y: 0 }, tolerance: PRECISE });
-    expect(result.balls[0]!.x).toBeCloseTo(2, 6);
+    // Shoved just clear of the pointer, which is a point and not a ball.
+    expect(result.balls[0]!.x).toBeCloseTo(1, 6);
     expect(result.balls[0]!.y).toBeCloseTo(0, 6);
+  });
+
+  it("does not reach a ball the pointer is not touching", () => {
+    // A pointer treated as a ball of its own nudges things from a radius away,
+    // which reads as pushing with an invisible object rather than a fingertip.
+    const balls: Ball[] = [{ x: 1.5, y: 0 }];
+    const result = settle(balls, { side: ROOMY, pusher: { x: 0, y: 0 }, tolerance: PRECISE });
+    expect(result.balls[0]).toEqual({ x: 1.5, y: 0 });
+  });
+});
+
+describe("the edge of the screen", () => {
+  const bounds = { x: 8, y: 5 };
+
+  it("never lets a ball past the bound, however hard it is pushed", () => {
+    const balls: Ball[] = [
+      { x: 7.9, y: 4.9 },
+      { x: 7.9, y: 4.9 },
+      { x: 7.9, y: 4.9 },
+    ];
+    const result = settle(balls, { side: 4, bounds, tolerance: PRECISE });
+    for (const ball of result.balls) {
+      expect(Math.abs(ball.x)).toBeLessThanOrEqual(bounds.x);
+      expect(Math.abs(ball.y)).toBeLessThanOrEqual(bounds.y);
+    }
+  });
+
+  it("hauls a ball already outside the bound back to it", () => {
+    const result = settle([{ x: 40, y: -40 }], { side: 4, bounds, tolerance: PRECISE });
+    expect(result.balls[0]).toEqual({ x: bounds.x, y: -bounds.y });
+  });
+
+  it("holds a carried ball on screen too", () => {
+    const result = settleOnce([{ x: 40, y: 0 }], { side: 4, bounds, lifted: 0 });
+    expect(result.balls[0]!.x).toBe(bounds.x);
+  });
+
+  it("still converges with balls jammed against the edge", () => {
+    // A clamped ball must read as settled, not as forever moving, or nothing
+    // that waits on convergence would ever finish.
+    const balls: Ball[] = Array.from({ length: 6 }, (_, i) => ({ x: 7.5 + i * 0.1, y: 4.5 }));
+    const result = settle(balls, { side: 30, bounds });
+    expect(result.converged).toBe(true);
   });
 });
 

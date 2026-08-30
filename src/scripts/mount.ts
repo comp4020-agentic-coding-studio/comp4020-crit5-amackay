@@ -1,6 +1,6 @@
 import { settleOnce } from "../game/settle";
 import { newSession, type Session } from "../game/session";
-import { ballAt, fitView, screenToWorld, type ViewTransform } from "../game/view";
+import { ballAt, fitView, screenToWorld, viewBounds, type ViewTransform } from "../game/view";
 import type { Ball } from "../game/types";
 import { createSurface, render, type Surface } from "./render";
 
@@ -63,9 +63,12 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     return { width: rect.width, height: rect.height };
   }
 
+  let bounds: { x: number; y: number } | null = null;
+
   function refreshView(): void {
     const { width, height } = measureSurface();
     view = fitView(session.side, width, height);
+    bounds = viewBounds(view, width, height);
   }
 
   function draw(): void {
@@ -80,6 +83,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
         lifted: grab?.ball ?? null,
         pinned: descending,
         pusher: grab && grab.ball === null ? grab.world : null,
+        bounds,
       });
       session = { ...session, balls: result.balls };
       // The descent is over once the arrangement has finished getting out of
