@@ -33,6 +33,17 @@ the point of the exercise, so name it rather than working around it.
   driven by rAF needs the step to be a callable function taking a delta, so the
   test advances time explicitly. Never make wall-clock time a dependency of a
   rule.
+- **A zero-sized measurement must not become a zero-valued rule input.** The
+  zero rect is not just a division hazard; anything *derived* from it is a
+  plausible-looking number that quietly ruins the state. A screen bound computed
+  from a zero-width surface is a bound of zero, and clamping to it collapses
+  every ball onto the origin — in every test at once, with nothing throwing.
+  Return null for an unmeasured surface and make the rules treat absent as
+  "no constraint", never as zero.
+- **A test asserting a position cannot be tighter than the solver's own
+  tolerance.** Convergence stops at a max displacement, so the geometry is only
+  ever that accurate. Ask for a tighter solve in the test rather than loosening
+  the assertion, and never write a tolerance that merely happens to pass.
 - **No instructions anywhere is a spec line, and it binds this harness too.**
   No how-to-play modal, no instructions page, nothing in the README standing in
   for either. If a change needs a sentence of explanation to be usable, the
@@ -77,6 +88,15 @@ from a previous week, where it silently 404s every asset on the live site.
   `agent-browser` CLI works). The rendered page is the truth; this week, the
   *played* page is.
 - **A value written in a comment is not evidence.** Evaluate the function.
+- **A green test written from the same misreading as the code is worth
+  nothing.** Three real bugs this week were covered by tests that asserted the
+  wrong behaviour and passed; each was found by opening the page. When a test
+  and the spec disagree, the spec wins and the test changes — in its own commit.
+- **Read positions back out of the DOM, not out of a screenshot.** For anything
+  geometric, `agent-browser eval` on an element's `transform` gives the exact
+  number and turns "looks about right" into a figure that can be checked against
+  the arithmetic. A screenshot confirms it is on screen; it cannot confirm it is
+  at 5.000.
 - **The `description` meta and any `alt` text are the exception to the
   no-prose rule** — the reader has not seen the page yet, so describing it
   is the whole job. Everywhere a player can already look, delete instead.

@@ -53,9 +53,16 @@ Two rules make this seam real rather than decorative:
   arrangement back toward the middle instead of closing around wherever it
   happens to sit — which is also how the game says, without a word, that the
   centre is where it happens.
-- **Wall ramps, not geometry.** A ball whose centre is within 1 radius outside
-  a wall line is pushed inward by the overlap. There is no hard collision with a
-  wall — the ramp is the whole wall model.
+- **The boundary is a rim, not four walls.** A raised rim follows the square's
+  outline, corners included, and the terrain falls away a radius either side of
+  it, so a ball rolls off it downhill — inward if inside, outward if outside.
+  There is no hard collision anywhere: the rim is a hill a ball can be pushed
+  over. It is the signed distance to the square, which is what makes the corners
+  fall out instead of being enumerated (see `rimAt`).
+- **The screen edge is the one hard stop.** A clamp on position, not a force,
+  because a ball must never be lost off screen — a guarantee, not a tendency.
+  Omitted when the surface has no measured size, which is every jsdom element:
+  bounds of zero would collapse the arrangement onto the origin.
 - **Determinism is a contract, not a nicety.** No `Math.random` anywhere in
   `src/game/`. Degeneracy jitter comes from a seeded PRNG keyed on ball index,
   so compacting an unchanged arrangement twice returns the identical number.
@@ -74,10 +81,10 @@ moves until all forces are known, so a ball with several contacts gets one
 coherent displacement instead of being shoved sequentially by each neighbour in
 turn — which is the regime a packing game lives in almost all of the time.
 
-- **Contact force is linear in overlap**, along the line of centres. For a pair,
-  overlap is `2 - distance` where positive; for a wall, it is how far the ball's
-  centre has come inside the 1-radius ramp, directed inward. A nonlinear contact
-  law would buy nothing here.
+- **Contact force is linear in overlap**, along the line of centres for a pair
+  (`2 - distance`, where positive) and across the rim for the boundary (`1 -
+  |distance to the boundary|`, downhill). A nonlinear contact law would buy
+  nothing here.
 - **Displacement is proportional to net force**: `dx = alpha * F`, overdamped,
   no velocity and no momentum carried between iterations. That is `IDEA.md`'s
   "the balls settle, they do not fly" stated as code rather than as a hope.
@@ -85,12 +92,14 @@ turn — which is the regime a packing game lives in almost all of the time.
   pair then resolves exactly in a single iteration, and dividing by the contact
   count keeps a pass non-expansive inside a dense cluster. This is the model's
   one constant and it is derived, not dialled in.
-- **A held ball is out of the arrangement entirely** — it exerts no force and
-  receives none, so it passes over its neighbours without disturbing them and
-  shoves them aside only when it is released. Anything less than that is not
-  `IDEA.md`'s "lifts clear of the others": a ball that stays pinned but keeps
-  pushing ploughs a furrow through the arrangement the player has built, which
-  is the opposite of being able to try a position before committing to it.
+- **A carried ball is out of the arrangement entirely** (`lifted`) — it exerts
+  no force and receives none, so it passes over its neighbours without
+  disturbing them. Anything less is not `IDEA.md`'s "lifts clear of the others":
+  a ball that stays pinned but keeps pushing ploughs a furrow through the
+  arrangement the player built, which is the opposite of being able to try a
+  position before committing to it. A **released** ball is the mirror image
+  (`pinned`): immovable, and shoving everything aside. M6 replaces both flags
+  with a height.
 - **Symmetry survives**, and this is the real reason to accumulate rather than
   resolve in place. Because nothing moves mid-pass, a symmetric arrangement
   settles symmetrically: N = 4 and N = 9 compact square instead of drifting on
@@ -103,119 +112,86 @@ turn — which is the regime a packing game lives in almost all of the time.
 - **Convergence** is measured on the largest per-ball displacement, under an
   iteration cap. Residual is the separate quantity that answers whether the
   arrangement actually *fits*, and it is the worst of the ball-ball overlaps
-  **and the wall penetrations**. Overlap alone is not enough: at N = 1 there are
+  **and the distance past the boundary**. Overlap alone is not enough: at N = 1 there are
   no pairs, so an overlap-only residual would call any box, however small, a
   perfect fit and compacting would close it to nothing.
-- **Total inward wall force is a pressure readout**, free from this model and a
+- **Total rim force is a pressure readout**, free from this model and a
   smoother stopping signal for compacting than residual overlap alone.
 
-## Build order
+## What is built
+
+The seam above, and with it: the packing table and star thresholds
+(`optima.ts`, `score.ts`); settling (`settle.ts`); compacting by bisection on
+the side (`compact.ts`); levels, carry-over and bests (`session.ts`); and the
+edge — DOM balls, pointer drag, the frame loop (`mount.ts`, `render.ts`).
+`spec/crit-5.test.ts` is green in full.
+
+Three things the milestones left behind, all still true and none obvious from
+the code:
+
+- **A ball is one of three things**, not two: carried (out of the arrangement
+  entirely, disturbs nothing it passes over), descending (position in plan
+  fixed, pushed by nothing including the rim, shoving neighbours aside), and
+  settled. Collapsing the first two is what made a drag plough a furrow through
+  the arrangement.
+- **Compacting skips its entry settle when the arrangement already fits.**
+  Re-settling a settled arrangement relaxes it by ~1e-13 a time, and enough
+  presses would creep it across a precision step, which would make pressing the
+  control repeatedly a strategy. Idempotence is structural, not approximate.
+- **Persistence is written and tested but not wired.** `serialise` /
+  `deserialise` are pure and covered; nothing calls `localStorage` yet, because
+  nothing is worth persisting until a level can be completed. It lands with the
+  handle.
+
+## What is left
 
 Each milestone is a commit or a short range, ends with `pnpm check` green, and
-adds the tests named under it. Milestones 0–4 need no browser at all.
+adds the tests named under it.
 
-### M0 — strip the template
+### M6 — motion: the falling descent, and a speed cap
 
-Replace the placeholder page with the shell: `nav`, one `h1`, an empty stage
-element, no copy. Replace the `description` meta with a real sentence.
+Settling currently resolves in about four frames and reads as teleporting. The
+fix is not to slow the solver down but to give the motion a reason to take time.
 
-*Lands green:* the three prose tests in `spec/crit-5.test.ts` — the template
-paragraph is what currently fails the sentence and word-budget checks. The
-pointer and script tests stay red on purpose until M5; a stub listener added
-here to green them would be gaming a sensor.
+**The descent becomes a fall.** A released ball has a height, and only ever one
+ball does, so the arrangement stays coplanar and the packing stays a packing.
+Two unit spheres touch at centre distance 2, so a ball at height `h` above the
+plane excludes its neighbours out to `sqrt(4 - h*h)` horizontally: nothing at
+`h = 2`, a full diameter at `h = 0`. Lowering `h` over the fall is IDEA.md's
+"lowers it back down, pushing its neighbours aside as it descends" taken
+literally instead of approximated, and it dissolves the carried/descending/
+settled enum into one number — carried is `h = 2`, settled is `h = 0`.
 
-### M1 — the numbers
+This is the only place a third dimension earns its keep. Modelling the *rules*
+in 3D would break the game: under a squeeze the balls would ride up over each
+other, and a pile is not a circle packing, so the published optima would stop
+being the right target. Corners get no cheaper either — a sphere against a 3D
+box corner needs the same signed distance with one more component.
 
-`optima.ts`, `score.ts`. Par is the naive grid, side `2*ceil(sqrt(N))`. The
-optimum table is hand-authored for N = 1..20 with one provenance line citing its
-source; three stars is the optimum plus a tolerance, two stars sits between.
+**And a speed cap** for everything that is not falling: a nudge, a box squeeze.
+Clamp each ball to a maximum speed per second so a big overlap resolves at a
+constant rate and eases out at the end, rather than exponentially with all the
+movement in the first two frames.
 
-*Tests:* par matches the formula for N = 1..20; the table is non-decreasing in
-N; `optimum(N) <= par(N)` for every N, with equality at N = 1, 4, 9; star
-thresholds are ordered and star count is monotone in achieved size. Those four
-catch a transcription slip in the table without needing to trust any single
-figure.
+*Tests:* horizontal exclusion grows monotonically from 0 to 2 as `h` falls from
+2 to 0; a ball at `h = 2` disturbs nothing; a landed ball is an ordinary member
+of the arrangement; the fall is stepped by a delta and reaches the same resting
+arrangement whatever the deltas were; a capped settle converges to the same
+fixed point as an uncapped one.
 
-*Closes:* `IDEA.md`'s open question on par values and star tolerances.
+*Retire with it:* the `pinned` option and the `descending` flag in `mount.ts`,
+both of which become `h > 0`.
 
-### M2 — settling
+**The test this breaks, on purpose.** `mount.test.ts` asserts the same
+arrangement after N steps whatever the delta was. A speed cap scaled by delta
+makes that false and *should* — the honest property is that the same **resting**
+arrangement is reached given enough time. Change it in its own commit, ahead of
+the feature, saying which line of the spec it still serves.
 
-`settle.ts`: one pass and a converge-to-residual wrapper with an iteration cap.
+*Playtest ask.* Does the drop read as a ball landing? Does the shove propagate
+visibly — A pushes B pushes C — or still arrive all at once?
 
-*Tests:* two overlapping balls end exactly touching after **one** iteration —
-that is the `alpha` calibration, so it fails loudly if the constant drifts; a
-ball inside the wall ramp ends on the wall line; an already-resolved
-arrangement is unchanged (idempotence); the same input twice gives bit-identical
-output; two coincident balls separate rather than hanging, and separate the same
-way every time; a held ball does not move while its neighbours do; a pusher
-bumps without being bumped.
-
-Walls need two tests rather than one, and not the obvious pair. "Settling never
-pushes a ball outside the box" is false by design — a ball squeezed by its
-neighbours can be driven past a wall, and the box dragged tight enough to
-overflow is a feature. The true statements are that a box which comfortably fits
-its balls keeps them in, and that a ball driven right outside is brought back;
-the second is what the ramp having no cutoff buys.
-
-Two more exist only because the model accumulates, and they are the ones worth
-writing first: a symmetric arrangement stays symmetric through a full settle,
-and permuting the ball indices permutes the result and changes nothing else. The
-second is the direct test of the accumulate-then-apply property — an accidental
-in-place write inside the force loop is invisible to every other test here and
-fails that one immediately.
-
-### M3 — compacting
-
-`compact.ts`. The box is centred and square, so the side is the only variable
-and compacting is a one-dimensional search. `compactStep` shrinks the side a
-little, settles, and reports wall pressure and residual overlap; the box backs
-off to the last side that settled under tolerance. `compact` runs it to
-completion for tests.
-
-*Tests:* N = 1 compacts to side 2; N = 4 from a rough grid reaches 4 within
-tolerance; N = 2 from a diagonal start reaches 2 + sqrt(2); compacting an
-already-compacted arrangement returns the identical side — the "pressing the
-control repeatedly is never a strategy" promise, and the reason M2 bought
-determinism; a scattered start terminates inside the iteration cap.
-
-One more the centred box makes checkable: the same arrangement translated well
-off-centre compacts to the same side. It is the test that the ramps really do
-herd a drifted arrangement in, rather than the player being quietly punished for
-building in the wrong part of the screen.
-
-### M4 — session and progression
-
-`session.ts`: completing a level drops one ball in and advances; positions carry
-over; best size and best arrangement per level; level-select reachability; the
-core sequence ends at N = 10 with levels to 20 available for playtesting.
-
-*Tests:* positions carry across a level change; re-entering a level restores its
-best arrangement, not a blank one; a worse attempt does not overwrite a best;
-completing 10 flags the sequence complete; there is no code path that clears an
-arrangement, which is how "no reset button" is held as a contract rather than a
-missing button.
-
-### M5 — the edge: render, drag, loop
-
-`mount.ts`, `render.ts`. Balls are DOM elements — one per ball, radial-gradient
-sphere plus a drop shadow, positioned by `transform`. Chosen over canvas
-because at N <= 20 the cost is irrelevant, the level-change zoom becomes one
-transform on the container, and the balls exist as elements a jsdom test can
-find. Rendering only writes; it never reads geometry back.
-
-*Lands green:* the remaining `spec/crit-5.test.ts` checks — a real script ships
-and a real `pointerdown` handler exists.
-
-*Tests:* mounting level N produces N ball elements; a synthetic
-pointerdown/move/up sequence through an injected view transform moves the
-grabbed ball to the released position; a drag on empty background bumps
-neighbours without picking one up; `step` is callable with a delta and the
-module never references `performance` or `Date`.
-
-**Playtest ask.** Does dragging feel like pushing a ball, or like moving a
-cursor with a ball attached? Does releasing read as the ball settling *down*?
-
-### M6 — the box handle
+### M7 — the box handle
 
 One handle: click compacts, drag resizes, including tighter than currently fits
 so balls overflow. This is the whole control surface of the game.
@@ -228,10 +204,10 @@ larger never moves a ball.
 screen: is the handle obviously a thing to grab? Does the failure — the box
 stopping short of par — read as failure?
 
-### M7 — level select, zoom, drop
+### M8 — level select, zoom, drop
 
 The level-select histogram doubles as the `nav` landmark the invariants require,
-which is why the shell in M0 has a `nav` with nothing in it yet. Level change
+which is why the shell has a `nav` with nothing in it yet. Level change
 zooms the view, then drops the new ball as a separate beat.
 
 *Tests:* the nav contains one row per reached level and none beyond; a row's bar
@@ -241,10 +217,11 @@ can be stepped to completion without wall-clock time.
 **Playtest ask.** Does 1 -> 2 read as "one more ball arrived", or as a reset?
 Does the N = 5 tear-down land as a difficulty spike or as a puzzle?
 
-### M8 — ship
+### M9 — ship
 
 Replace `public/card.png`, write `PROCESS.md` as a reading guide with resolving
-commit citations, run `pnpm check:evidence`.
+commit citations, run `pnpm check:evidence`. Revert the three-ball
+playtest start in `main.ts`.
 
 *Playtest ask, the one that matters.* A stranger, cold, at 390x844 and at
 1920x1080: core sequence to completion in about five minutes. The phone is where
@@ -260,7 +237,7 @@ That buys the title back, not the level select — twenty histogram rows are
 twenty words on their own. And underneath that sits the larger problem:
 `spec/crit-5.test.ts` reads `dist/index.html` statically, so a game that builds
 its DOM at runtime would pass the prose tests because the built page is empty,
-not because it is quiet. Both halves resolve at M7:
+not because it is quiet. Both halves resolve at M8:
 
 - **Server-render the opening state** in `index.astro` — level 1, one ball, a
   nav with one row — and hydrate from there. The built HTML then really does
@@ -276,12 +253,12 @@ the crude half of that test and the regex is the half that encodes the spec.
 
 **Keyboard input is not on this path.** `IDEA.md` leaves it open and untested.
 It is accessibility, not the intended mode, and the marked phone viewport has no
-keyboard at all, so it lands after M7 or not this week — and by hand, since
+keyboard at all, so it lands after M8 or not this week — and by hand, since
 nothing here can judge it.
 
 ## Still open after this plan
 
-- How the box-closing animation is rendered (decided in M6, from what the
+- How the box-closing animation is rendered (decided in M7, from what the
   handle turns out to feel like).
-- The star tolerance widths, which M1 fixes as numbers but only a playtest
-  around M8 can judge as difficulty.
+- The star tolerance widths, fixed as numbers in `score.ts` but only a
+  playtest around M9 can judge as difficulty.
