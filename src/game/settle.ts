@@ -91,6 +91,51 @@ function jitterDirection(i: number, j: number): { x: number; y: number } {
   return { x: Math.cos(angle), y: Math.sin(angle) };
 }
 
+
+/**
+ * Where a point stands relative to the box boundary: the signed distance to it
+ * (negative inside, positive outside) and the unit vector pointing outward
+ * across it.
+ *
+ * This is the standard signed-distance function for an axis-aligned square, and
+ * every case a ball near a corner can be in falls out of it rather than having
+ * to be enumerated:
+ *
+ * - beside one edge: pushed square-on to that edge
+ * - outside, diagonally past a corner: pushed radially away from the corner
+ *   point, because the nearest part of the box *is* that point
+ * - outside one edge but not past the corner: pushed away from the edge it is
+ *   outside of
+ * - inside: pushed away from whichever edge is nearest, and diagonally when two
+ *   are equally near
+ */
+function rimAt(point: Ball, half: number): { distance: number; nx: number; ny: number } {
+  const sx = point.x >= 0 ? 1 : -1;
+  const sy = point.y >= 0 ? 1 : -1;
+  const qx = Math.abs(point.x) - half;
+  const qy = Math.abs(point.y) - half;
+
+  if (qx > 0 || qy > 0) {
+    // Outside. The nearest point of the box is a corner when both are positive
+    // and a point on an edge otherwise; either way this is the vector to it.
+    const ox = Math.max(qx, 0);
+    const oy = Math.max(qy, 0);
+    const length = Math.hypot(ox, oy);
+    return { distance: length, nx: (sx * ox) / length, ny: (sy * oy) / length };
+  }
+
+  // Inside: distance to the nearest edge, and out across it.
+  const distance = Math.max(qx, qy);
+  if (Math.abs(qx - qy) < DEGENERATE) {
+    // Equally near two edges — on a diagonal of the box, so out is diagonal.
+    const diagonal = Math.SQRT1_2;
+    return { distance, nx: sx * diagonal, ny: sy * diagonal };
+  }
+  return qx > qy
+    ? { distance, nx: sx, ny: 0 }
+    : { distance, nx: 0, ny: sy };
+}
+
 interface Accumulation extends Measurement {
   fx: Float64Array;
   fy: Float64Array;
@@ -146,41 +191,37 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
     }
   }
 
-  // Ball against wall. A wall is a ridge, not a fence: an incline one radius
-  // wide on each side of the line, both sides pushing away from the line. The
-  // peak is where the ball's centre sits on the line, and the force falls to
-  // nothing a radius either side of it — so a ball rests with its outer edge on
-  // the line when it is inside, and with its inner edge on the line when it is
-  // outside. Between those two rest positions is a hill the player can push a
-  // ball over, which is how dragging the box too tight teaches itself.
+  // Ball against box. The boundary is a raised rim following the square's
+  // outline — corners included — and the terrain falls away to nothing a radius
+  // either side of it. A ball on the rim rolls off it downhill, inward or
+  // outward, which is the hill the player can push a ball over.
+  //
+  // Treating the four walls as four independent lines is what this replaces,
+  // and it was wrong in a way only the corners showed: each line ran to
+  // infinity, so a ball far past a corner still felt a wall it was nowhere
+  // near.
   const half = opts.side / 2;
   for (let i = 0; i < n; i++) {
     if (i === lifted) continue;
-    const ball = balls[i]!;
-    for (const [axis, centre] of [
-      [0, ball.x],
-      [1, ball.y],
-    ] as const) {
-      // Containment is a separate question from force: the box does not hold a
-      // ball whose far edge is past the line, however the ridge is pushing it,
-      // and compacting must never call that a fit.
-      const overhang = Math.abs(centre) + BALL_RADIUS - half;
-      if (overhang > residual) residual = overhang;
+    const rim = rimAt(balls[i]!, half);
 
-      for (const wall of [half, -half]) {
-        const offset = centre - wall;
-        if (Math.abs(offset) >= RAMP) continue;
-        const magnitude = RAMP - Math.abs(offset);
-        // Balanced exactly on the ridge, a ball falls inward. IDEA.md asks for
-        // exact alignments to be broken; inward is deterministic and needs no
-        // jitter, and it is the kinder of the two answers.
-        const away = Math.abs(offset) < DEGENERATE ? -Math.sign(wall) : Math.sign(offset);
-        if (axis === 0) fx[i]! += away * magnitude;
-        else fy[i]! += away * magnitude;
-        contacts[i]!++;
-        wallForce += magnitude;
-      }
-    }
+    // Containment is a separate question from force: the box does not hold a
+    // ball whose centre is within a radius of the boundary or beyond it,
+    // however the rim happens to be pushing, and compacting must never call
+    // that a fit.
+    const overhang = rim.distance + BALL_RADIUS;
+    if (overhang > residual) residual = overhang;
+
+    if (Math.abs(rim.distance) >= RAMP) continue;
+    const magnitude = RAMP - Math.abs(rim.distance);
+    // Downhill is away from the rim: further out if already out, further in if
+    // in. Balanced exactly on it, a ball falls inward — IDEA.md asks for an
+    // exact alignment to be broken, and inward is the kinder of the two.
+    const downhill = rim.distance > DEGENERATE ? 1 : -1;
+    fx[i]! += downhill * rim.nx * magnitude;
+    fy[i]! += downhill * rim.ny * magnitude;
+    contacts[i]!++;
+    wallForce += magnitude;
   }
 
   // The fingertip: a phantom ball that pushes and is never pushed back.

@@ -150,6 +150,80 @@ describe("walls", () => {
   });
 });
 
+describe("corners", () => {
+  // Box of side 10, so the boundary runs through (5, 5) and its friends.
+  const side = 10;
+  const CORNER = { x: 5, y: 5 };
+
+  function fromCorner(ball: Ball): number {
+    return Math.hypot(ball.x - CORNER.x, ball.y - CORNER.y);
+  }
+
+  it("does not reach a ball level with a wall but far past its corner", () => {
+    // The bug this replaces: four walls treated as four independent lines, each
+    // running to infinity, so a ball nowhere near the box still felt one. The
+    // rim follows the square's outline and stops at the corner.
+    for (const ball of [
+      { x: 5, y: 20 },
+      { x: 5, y: 6.5 },
+      { x: -5, y: -40 },
+      { x: 12, y: 5 },
+    ]) {
+      const result = settle([ball], { side, tolerance: PRECISE });
+      expect(result.balls[0], `from (${ball.x}, ${ball.y})`).toEqual(ball);
+    }
+  });
+
+  it("pushes a ball in the outer quadrant away from the corner point", () => {
+    const result = settle([{ x: 5.3, y: 5.3 }], { side, tolerance: PRECISE });
+    const ball = result.balls[0]!;
+    expect(fromCorner(ball)).toBeCloseTo(1, 6);
+    expect(ball.x).toBeCloseTo(ball.y, 9); // straight out along the diagonal
+    expect(ball.x).toBeGreaterThan(5);
+  });
+
+  it("pushes a ball in a side quadrant square off the wall it is outside", () => {
+    const result = settle([{ x: 5.5, y: 2 }], { side, tolerance: PRECISE });
+    expect(result.balls[0]!.x).toBeCloseTo(6, 6);
+    expect(result.balls[0]!.y).toBeCloseTo(2, 9); // and not along the other axis
+  });
+
+  it("pushes a ball in the inner quadrant off its nearest wall", () => {
+    const result = settle([{ x: 4.5, y: 3 }], { side, tolerance: PRECISE });
+    expect(result.balls[0]!.x).toBeCloseTo(4, 6);
+    expect(result.balls[0]!.y).toBeCloseTo(3, 9);
+  });
+
+  it("pushes a ball on the inner diagonal diagonally", () => {
+    // Equally near two walls, so neither one alone is the answer.
+    const result = settle([{ x: 4.5, y: 4.5 }], { side, tolerance: PRECISE });
+    expect(result.balls[0]!.x).toBeCloseTo(4, 6);
+    expect(result.balls[0]!.y).toBeCloseTo(4, 6);
+  });
+
+  it("settles a ball to the same distance from the box wherever it starts", () => {
+    // The rest surface is one radius from the boundary the whole way round,
+    // corners included — which is what makes the corner a rounded turn rather
+    // than a place where two rules meet and argue.
+    for (const start of [
+      { x: 4.4, y: 0 },
+      { x: 4.4, y: 4.4 },
+      { x: 5.4, y: 5.4 },
+      { x: 5.4, y: 1 },
+      { x: 4.6, y: 4.9 },
+    ]) {
+      const ball = settle([start], { side, tolerance: PRECISE }).balls[0]!;
+      const qx = Math.abs(ball.x) - side / 2;
+      const qy = Math.abs(ball.y) - side / 2;
+      const distance =
+        qx > 0 || qy > 0
+          ? Math.hypot(Math.max(qx, 0), Math.max(qy, 0))
+          : Math.max(qx, qy);
+      expect(Math.abs(distance), `from (${start.x}, ${start.y})`).toBeCloseTo(1, 5);
+    }
+  });
+});
+
 describe("determinism", () => {
   it("gives bit-identical output for the same input twice", () => {
     const balls: Ball[] = [
