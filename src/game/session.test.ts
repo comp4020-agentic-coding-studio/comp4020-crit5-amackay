@@ -13,7 +13,7 @@ import {
   serialise,
   type Session,
 } from "./session";
-import { CORE_SEQUENCE } from "./types";
+import { CORE_SEQUENCE, MAX_LEVEL } from "./types";
 
 /** Play a level to the given size and move on. */
 function beat(session: Session, side = optimum(session.level)): Session {
@@ -32,6 +32,37 @@ describe("a new session", () => {
     expect(session.level).toBe(1);
     expect(session.balls).toHaveLength(1);
     expect(levelComplete(session)).toBe(false);
+  });
+
+  it("can be opened at any level, for playtesting", () => {
+    for (const level of [1, 3, 10, MAX_LEVEL]) {
+      const session = newSession(level);
+      expect(session.level).toBe(level);
+      expect(session.reached).toBe(level);
+      expect(session.balls).toHaveLength(level);
+    }
+    expect(newSession(0).level).toBe(1);
+    expect(newSession(MAX_LEVEL + 5).level).toBe(MAX_LEVEL);
+  });
+
+  it("lays its balls out clear of each other and inside the box", () => {
+    // A starting layout that overlapped would settle explosively on the first
+    // frame, which would read as the game malfunctioning rather than starting.
+    for (const level of [1, 2, 3, 4, 9, 10, MAX_LEVEL]) {
+      const { balls, side } = newSession(level);
+      const half = side / 2;
+      for (const ball of balls) {
+        expect(Math.abs(ball.x), `N = ${level}`).toBeLessThanOrEqual(half - 1);
+        expect(Math.abs(ball.y), `N = ${level}`).toBeLessThanOrEqual(half - 1);
+      }
+      for (let i = 0; i < balls.length; i++) {
+        for (let j = i + 1; j < balls.length; j++) {
+          const a = balls[i]!;
+          const b = balls[j]!;
+          expect(Math.hypot(a.x - b.x, a.y - b.y), `N = ${level}`).toBeGreaterThan(2);
+        }
+      }
+    }
   });
 });
 

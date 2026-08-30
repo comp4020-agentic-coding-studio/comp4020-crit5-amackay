@@ -16,6 +16,22 @@ export function dropPosition(n: number): Ball {
   return { x: 0, y: openSide(n) / 2 - BALL_RADIUS };
 }
 
+/** Gap between balls in a starting layout, in radii: clear, but not scattered. */
+const START_SPACING = 2.4;
+
+/**
+ * A loose grid of n balls, clear of each other and well inside the open box.
+ * Used when a level has to be furnished from nothing rather than carried into.
+ */
+export function startingBalls(n: number): Ball[] {
+  const columns = Math.ceil(Math.sqrt(n));
+  const rows = Math.ceil(n / columns);
+  return Array.from({ length: n }, (_, i) => ({
+    x: ((i % columns) - (columns - 1) / 2) * START_SPACING,
+    y: (Math.floor(i / columns) - (rows - 1) / 2) * START_SPACING,
+  }));
+}
+
 export interface Best {
   side: Side;
   stars: Stars;
@@ -34,12 +50,13 @@ export interface Session {
   finished: boolean;
 }
 
-export function newSession(): Session {
+export function newSession(level = 1): Session {
+  const start = Math.min(MAX_LEVEL, Math.max(1, level));
   return {
-    level: 1,
-    reached: 1,
-    balls: [{ x: 0, y: 0 }],
-    side: openSide(1),
+    level: start,
+    reached: start,
+    balls: startingBalls(start),
+    side: openSide(start),
     bests: {},
     finished: false,
   };
@@ -110,7 +127,7 @@ export function enterLevel(session: Session, n: number): Session {
     ? best.balls.map((b) => ({ ...b }))
     : session.level === n
       ? session.balls.map((b) => ({ ...b }))
-      : Array.from({ length: n }, (_, i) => dropPosition(n + i));
+      : startingBalls(n);
   return { ...session, level: n, balls, side: openSide(n) };
 }
 
