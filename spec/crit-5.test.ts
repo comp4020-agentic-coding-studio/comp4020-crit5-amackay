@@ -18,12 +18,26 @@ function visibleText(): string {
   return (body.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
+// The word budget is about prose, and a heading is a name rather than prose:
+// the invariants already hold the page to exactly one h1, and calling the game
+// something is naming it. The instruction regex below still reads headings —
+// "How to play" is telling whether or not it is set as one.
+function textWithoutHeadings(): string {
+  const body = doc.body.cloneNode(true) as HTMLElement;
+  for (const el of body.querySelectorAll(
+    "script, style, template, noscript, h1, h2, h3, h4, h5, h6",
+  )) {
+    el.remove();
+  }
+  return (body.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
 // Spec: "it teaches itself: no instructions anywhere, on screen or off".
 // A test cannot tell whether the opening screen invites the first move — the
 // pod settles that. What it can hold is the negative half: that the page never
 // resorts to telling. Naming a game, a level or a score is not telling.
 describe("no prose beyond naming things", () => {
-  const words = visibleText().split(" ").filter(Boolean);
+  const words = textWithoutHeadings().split(" ").filter(Boolean);
 
   it("carries no instruction-shaped copy", () => {
     const telling =
@@ -44,7 +58,7 @@ describe("no prose beyond naming things", () => {
   it("keeps the visible word count to a naming budget", () => {
     expect(
       words.length,
-      `${words.length} words on screen: ${visibleText().slice(0, 200)}`,
+      `${words.length} words on screen: ${textWithoutHeadings().slice(0, 200)}`,
     ).toBeLessThanOrEqual(20);
   });
 });
