@@ -97,8 +97,11 @@ turn — which is the regime a packing game lives in almost all of the time.
   addition is not associative, plus the seeded jitter above. Order now affects
   the last bits rather than the outcome, which is a much easier thing to hold.
 - **Convergence** is measured on the largest per-ball displacement, under an
-  iteration cap. Largest residual overlap is a separate quantity, and it is the
-  one that answers whether the arrangement actually *fits*.
+  iteration cap. Residual is the separate quantity that answers whether the
+  arrangement actually *fits*, and it is the worst of the ball-ball overlaps
+  **and the wall penetrations**. Overlap alone is not enough: at N = 1 there are
+  no pairs, so an overlap-only residual would call any box, however small, a
+  perfect fit and compacting would close it to nothing.
 - **Total inward wall force is a pressure readout**, free from this model and a
   smoother stopping signal for compacting than residual overlap alone.
 
@@ -140,8 +143,15 @@ that is the `alpha` calibration, so it fails loudly if the constant drifts; a
 ball inside the wall ramp ends on the wall line; an already-resolved
 arrangement is unchanged (idempotence); the same input twice gives bit-identical
 output; two coincident balls separate rather than hanging, and separate the same
-way every time; settling never pushes a ball outside the box; a held ball does
-not move while its neighbours do.
+way every time; a held ball does not move while its neighbours do; a pusher
+bumps without being bumped.
+
+Walls need two tests rather than one, and not the obvious pair. "Settling never
+pushes a ball outside the box" is false by design — a ball squeezed by its
+neighbours can be driven past a wall, and the box dragged tight enough to
+overflow is a feature. The true statements are that a box which comfortably fits
+its balls keeps them in, and that a ball driven right outside is brought back;
+the second is what the ramp having no cutoff buys.
 
 Two more exist only because the model accumulates, and they are the ones worth
 writing first: a symmetric arrangement stays symmetric through a full settle,
