@@ -10,6 +10,14 @@ const CONTACT_DISTANCE = 2 * BALL_RADIUS;
 /** Ramp width on either side of a wall line, per IDEA.md. */
 const RAMP = BALL_RADIUS;
 
+/**
+ * Overhang at which a ball has cleared the ramp entirely and the wall lets go.
+ * Depth is measured from the ball's near edge touching the wall line, so it
+ * runs 0 at rest against the wall, 1 with the centre on the line, and 2 with
+ * the whole ball outside — the far end of the incline.
+ */
+const RAMP_SPAN = 2 * RAMP;
+
 /** Below this, two centres count as coincident and need a jitter direction. */
 const DEGENERATE = 1e-9;
 
@@ -32,12 +40,19 @@ export interface Pusher {
 export interface SettleOptions {
   side: Side;
   /**
-   * Index of the ball being carried. It is lifted clear of the arrangement, so
-   * it neither receives force nor exerts any — it passes over its neighbours
-   * without disturbing them, and only shoves them aside when it is released
-   * and comes back down.
+   * The ball being carried. Lifted clear of the arrangement: it neither
+   * receives force nor exerts any, so it passes over its neighbours without
+   * disturbing them.
    */
-  held?: number | null;
+  lifted?: number | null;
+  /**
+   * The ball coming back down after release. Its position in plan is fixed —
+   * it is pushed by nothing, not even a wall — while it shoves its neighbours
+   * aside to make room. This is the descent IDEA.md describes, and it is a
+   * different thing from being carried: carried disturbs nothing, descending
+   * disturbs everything and is itself immovable.
+   */
+  pinned?: number | null;
   /** Dragging on empty background bumps balls aside. */
   pusher?: Pusher | null;
   tolerance?: number;
@@ -91,15 +106,15 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
   let residual = 0;
   let wallForce = 0;
 
-  // A held ball is out of the arrangement entirely until it is let go.
-  const held = opts.held ?? null;
+  // A carried ball is out of the arrangement entirely until it is let go.
+  const lifted = opts.lifted ?? null;
 
   // Ball against ball. Fixed index order, so the summation order is fixed too:
   // float addition is not associative, and that is all the order affects here.
   for (let i = 0; i < n; i++) {
-    if (i === held) continue;
+    if (i === lifted) continue;
     for (let j = i + 1; j < n; j++) {
-      if (j === held) continue;
+      if (j === lifted) continue;
       const dx = balls[j]!.x - balls[i]!.x;
       const dy = balls[j]!.y - balls[i]!.y;
       const distance = Math.hypot(dx, dy);
@@ -128,11 +143,16 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
   }
 
   // Ball against wall. The ramp is the whole wall model: there is no hard
-  // collision, so a ball driven past a wall is pushed back rather than clipped,
-  // and the force keeps growing beyond the ramp so it always comes back.
+  // collision, so a ball driven at a wall is shoved off it rather than clipped.
+  //
+  // The incline is one radius either side of the wall line, per IDEA.md, which
+  // means it ends: a ball whose near edge has cleared the line by a full radius
+  // is outside the box and stays there. The wall is a hill the player can push
+  // a ball over, not a fence — pushing balls out is how dragging the box too
+  // tight teaches itself.
   const half = opts.side / 2;
   for (let i = 0; i < n; i++) {
-    if (i === held) continue;
+    if (i === lifted) continue;
     const ball = balls[i]!;
     const penetrations = [
       { axis: 0, depth: ball.x + BALL_RADIUS - half, sign: -1 },
@@ -142,11 +162,14 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
     ];
     for (const { axis, depth, sign } of penetrations) {
       if (depth <= 0) continue;
+      // Residual counts the whole overhang however far out the ball is: the box
+      // does not contain it, and compacting must never call that a fit.
+      if (depth > residual) residual = depth;
+      if (depth >= RAMP_SPAN) continue; // over the hill and away
       if (axis === 0) fx[i]! += sign * depth;
       else fy[i]! += sign * depth;
       contacts[i]!++;
       wallForce += depth;
-      if (depth > residual) residual = depth;
     }
   }
 
@@ -154,7 +177,7 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
   const pusher = opts.pusher;
   if (pusher) {
     for (let i = 0; i < n; i++) {
-      if (i === held) continue;
+      if (i === lifted) continue;
       const dx = balls[i]!.x - pusher.x;
       const dy = balls[i]!.y - pusher.y;
       const distance = Math.hypot(dx, dy);
@@ -186,14 +209,17 @@ export interface PassResult extends Measurement {
 /** One accumulate-then-apply pass. */
 export function settleOnce(balls: readonly Ball[], opts: SettleOptions): PassResult {
   const { fx, fy, contacts, residual, wallForce } = accumulate(balls, opts);
-  const held = opts.held ?? null;
+  const lifted = opts.lifted ?? null;
+  const pinned = opts.pinned ?? null;
   const moved: Ball[] = [];
 
   let maxDisplacement = 0;
 
   for (let i = 0; i < balls.length; i++) {
     const ball = balls[i]!;
-    if (i === held) {
+    // A carried ball is moved by the pointer, not by us; a descending one has
+    // its position in plan fixed while everything else gets out of its way.
+    if (i === lifted || i === pinned) {
       moved.push({ x: ball.x, y: ball.y });
       continue;
     }

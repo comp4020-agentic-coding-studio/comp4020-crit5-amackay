@@ -89,11 +89,29 @@ describe("walls", () => {
     expect(result.balls[0]!.x).toBeCloseTo(side / 2 - 1, 6);
   });
 
-  it("brings a ball driven right outside the box back in", () => {
+  it("lets a ball that has cleared the ramp stay outside", () => {
+    // The incline is one radius either side of the wall line and then it ends,
+    // per IDEA.md. A wall is a hill a ball can be pushed over, not a fence, and
+    // being able to drop a ball outside is what makes dragging the box too
+    // tight legible rather than merely impossible.
     const side = 10;
-    const result = settle([{ x: 20, y: -14 }], { side, tolerance: PRECISE });
-    expect(result.balls[0]!.x).toBeCloseTo(side / 2 - 1, 6);
-    expect(result.balls[0]!.y).toBeCloseTo(-(side / 2) + 1, 6);
+    const outside = { x: 20, y: -14 };
+    const result = settle([outside], { side, tolerance: PRECISE });
+    expect(result.balls[0]).toEqual(outside);
+  });
+
+  it("still counts an escaped ball as not fitting", () => {
+    // No force on it, but the box plainly does not contain it, and compacting
+    // must never call that a fit.
+    expect(measure([{ x: 20, y: 0 }], { side: 10 }).residual).toBeGreaterThan(2);
+  });
+
+  it("pushes a ball back in from anywhere on the ramp", () => {
+    const side = 10;
+    for (const x of [4.1, 4.6, 5, 5.5, 5.9]) {
+      const result = settle([{ x, y: 0 }], { side, tolerance: PRECISE });
+      expect(result.balls[0]!.x, `from x = ${x}`).toBeCloseTo(side / 2 - 1, 6);
+    }
   });
 
   it("leaves every ball inside a box that comfortably fits them", () => {
@@ -145,7 +163,7 @@ describe("determinism", () => {
 });
 
 describe("held and pushed", () => {
-  it("lifts a held ball clear, disturbing nothing it passes over", () => {
+  it("lifts a carried ball clear, disturbing nothing it passes over", () => {
     // IDEA.md: a dragged ball "moves freely without collision". It is out of
     // the arrangement entirely while carried, so a neighbour it is sitting on
     // top of must not move at all.
@@ -153,14 +171,14 @@ describe("held and pushed", () => {
       { x: 0, y: 0 },
       { x: 1.0, y: 0 },
     ];
-    const result = settle(balls, { side: ROOMY, held: 0, tolerance: PRECISE });
+    const result = settle(balls, { side: ROOMY, lifted: 0, tolerance: PRECISE });
     expect(result.balls[0]).toEqual({ x: 0, y: 0 });
     expect(result.balls[1]).toEqual({ x: 1.0, y: 0 });
   });
 
-  it("ignores the walls for a held ball too", () => {
+  it("ignores the walls for a carried ball too", () => {
     const balls: Ball[] = [{ x: 40, y: 40 }];
-    const result = settle(balls, { side: 6, held: 0, tolerance: PRECISE });
+    const result = settle(balls, { side: 6, lifted: 0, tolerance: PRECISE });
     expect(result.balls[0]).toEqual({ x: 40, y: 40 });
   });
 
@@ -171,6 +189,27 @@ describe("held and pushed", () => {
     ];
     const result = settle(balls, { side: ROOMY, tolerance: PRECISE });
     expect(distance(result.balls[0]!, result.balls[1]!)).toBeCloseTo(2, 6);
+  });
+
+  it("holds a descending ball still and moves everything out of its way", () => {
+    // IDEA.md: releasing "fixes its position in plan and lowers it back down,
+    // pushing its neighbours aside as it descends". Being pinned is a third
+    // state, not the same as being carried: carried disturbs nothing,
+    // descending disturbs everything and is itself immovable.
+    const balls: Ball[] = [
+      { x: 0, y: 0 },
+      { x: 1.0, y: 0 },
+      { x: -1.0, y: 0 },
+    ];
+    const result = settle(balls, { side: ROOMY, pinned: 0, tolerance: PRECISE });
+    expect(result.balls[0]).toEqual({ x: 0, y: 0 });
+    expect(result.balls[1]!.x).toBeCloseTo(2, 6);
+    expect(result.balls[2]!.x).toBeCloseTo(-2, 6);
+  });
+
+  it("does not let a wall move a descending ball either", () => {
+    const result = settle([{ x: 4.5, y: 0 }], { side: 10, pinned: 0, tolerance: PRECISE });
+    expect(result.balls[0]).toEqual({ x: 4.5, y: 0 });
   });
 
   it("bumps balls away from a pusher without moving the pusher", () => {

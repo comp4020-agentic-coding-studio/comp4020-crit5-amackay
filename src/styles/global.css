@@ -38,7 +38,12 @@ h1 {
 #stage {
   position: fixed;
   inset: 0;
+  /* touch-action stops the browser panning instead of dragging; the two
+     user-select rules stop a touchpad tap-drag turning into a text selection,
+     which swallows the pointermove stream halfway through a drag. */
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Balls are elements rather than canvas: at N <= 20 the cost is irrelevant, the
@@ -46,6 +51,7 @@ h1 {
    positions are written by render.ts, never declared here. */
 .ball {
   position: absolute;
+  -webkit-user-drag: none;
   top: 0;
   left: 0;
   border-radius: 50%;

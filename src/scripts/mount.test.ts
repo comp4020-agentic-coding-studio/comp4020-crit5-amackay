@@ -112,7 +112,10 @@ describe("dragging a ball", () => {
     game.destroy();
   });
 
-  it("settles the neighbours apart once the ball is let go", () => {
+  it("keeps the released ball put and shoves the neighbour off it", () => {
+    // The dropped ball's position in plan is what the player chose; it is the
+    // arrangement that has to make room, not the drop that gets nudged off
+    // target.
     const game = mount([
       { x: -3, y: 0 },
       { x: 3, y: 0 },
@@ -126,8 +129,61 @@ describe("dragging a ball", () => {
     settleFrames(game);
 
     const [a, b] = game.session.balls as [Ball, Ball];
+    // Not exact: once the neighbours have made room the descent ends and the
+    // ball rejoins the arrangement, so a hair of ordinary relaxation follows.
+    // What matters is that it is where it was dropped, not shunted off it.
+    expect(a.x).toBeCloseTo(3, 3);
+    expect(a.y).toBeCloseTo(0, 3);
+    // Which way the neighbour goes is not a fact about the game: dropped
+    // exactly on top of it, the separation direction comes from the seeded
+    // jitter. That it moved a long way, and that they end up touching, is.
+    expect(Math.hypot(b.x - 3, b.y)).toBeGreaterThan(1.5);
     expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(2 - 1e-3);
     game.destroy();
+  });
+
+  it("carries a ball by the point it was grabbed by", () => {
+    // Grabbing the edge of a ball and snapping its centre to the pointer makes
+    // every pick-up start with a jump.
+    const game = mount([{ x: 0, y: 0 }]);
+    const edge = at(game, { x: 0.8, y: 0 });
+    const to = at(game, { x: 4.8, y: 2 });
+
+    game.pointerDown(edge.x, edge.y);
+    game.pointerMove(to.x, to.y);
+    game.step(1 / 60);
+
+    // Moved by the pointer's displacement, not to the pointer.
+    expect(game.session.balls[0]!.x).toBeCloseTo(4, 6);
+    expect(game.session.balls[0]!.y).toBeCloseTo(2, 6);
+    game.destroy();
+  });
+
+  it("releases a descending ball once its neighbours have made room", () => {
+    // The descent is self-terminating: no clock, and afterwards the ball is an
+    // ordinary member of the arrangement again.
+    const game = mount([
+      { x: 0, y: 0 },
+      { x: 0.5, y: 0 },
+    ]);
+    const from = at(game, { x: 0, y: 0 });
+    game.pointerDown(from.x, from.y);
+    game.pointerUp();
+    settleFrames(game);
+
+    const [a, b] = game.session.balls as [Ball, Ball];
+    expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeCloseTo(2, 3);
+
+    // Now that it has landed, a wall can move it like any other ball.
+    const walled = mount([{ x: 0, y: 0 }]);
+    const grab = at(walled, { x: 0, y: 0 });
+    walled.pointerDown(grab.x, grab.y);
+    walled.pointerMove(at(walled, { x: 19.5, y: 0 }).x, at(walled, { x: 19.5, y: 0 }).y);
+    walled.pointerUp();
+    settleFrames(walled);
+    expect(walled.session.balls[0]!.x).toBeCloseTo(ROOMY_SIDE / 2 - 1, 3);
+    game.destroy();
+    walled.destroy();
   });
 });
 

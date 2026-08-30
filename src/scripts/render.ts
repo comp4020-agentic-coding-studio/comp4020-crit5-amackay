@@ -49,6 +49,8 @@ export function render(
     element.style.height = `${diameter}px`;
     element.style.transform = `translate(${screen.x - diameter / 2}px, ${screen.y - diameter / 2}px)`;
     element.classList.toggle("held", i === held);
+    // A carried ball is above the arrangement, so it draws above it too.
+    element.style.zIndex = i === held ? "2" : "1";
   }
 
   const boxPx = side * view.scale;
