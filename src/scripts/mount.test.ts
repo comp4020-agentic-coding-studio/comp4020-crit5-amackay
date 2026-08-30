@@ -18,8 +18,18 @@ beforeEach(() => {
   document.body.append(container);
 });
 
+/**
+ * Deliberately far bigger than any arrangement here needs. These tests are
+ * about what the pointer does, and a box tight enough for the walls to join in
+ * would leave every assertion answering two questions at once. Walls have their
+ * own tests, in settle.test.ts.
+ */
+const ROOMY_SIDE = 40;
+
 function mount(balls?: Ball[]): Game {
-  const session = balls ? { ...newSession(), balls, level: balls.length } : undefined;
+  const session = balls
+    ? { ...newSession(balls.length), balls, side: ROOMY_SIDE }
+    : undefined;
   return createGame(container, { session, size: SIZE });
 }
 
@@ -83,7 +93,9 @@ describe("dragging a ball", () => {
     game.destroy();
   });
 
-  it("lifts the held ball clear, so it passes through its neighbours", () => {
+  it("carries a ball over its neighbours without disturbing them", () => {
+    // The arrangement the player has built must survive a ball being moved
+    // across it: nothing is shoved until the ball is released.
     const game = mount([
       { x: -3, y: 0 },
       { x: 3, y: 0 },
@@ -93,11 +105,10 @@ describe("dragging a ball", () => {
 
     game.pointerDown(from.x, from.y);
     game.pointerMove(onto.x, onto.y);
-    game.step(1 / 60);
+    settleFrames(game, 30);
 
-    // Held, it sits exactly on its neighbour; the neighbour is what moves.
     expect(game.session.balls[0]!.x).toBeCloseTo(3, 6);
-    expect(game.session.balls[1]!.x).not.toBeCloseTo(3, 3);
+    expect(game.session.balls[1]).toEqual({ x: 3, y: 0 });
     game.destroy();
   });
 

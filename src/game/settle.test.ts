@@ -145,14 +145,32 @@ describe("determinism", () => {
 });
 
 describe("held and pushed", () => {
-  it("leaves a held ball where it is and moves its neighbours", () => {
+  it("lifts a held ball clear, disturbing nothing it passes over", () => {
+    // IDEA.md: a dragged ball "moves freely without collision". It is out of
+    // the arrangement entirely while carried, so a neighbour it is sitting on
+    // top of must not move at all.
     const balls: Ball[] = [
       { x: 0, y: 0 },
       { x: 1.0, y: 0 },
     ];
     const result = settle(balls, { side: ROOMY, held: 0, tolerance: PRECISE });
     expect(result.balls[0]).toEqual({ x: 0, y: 0 });
-    expect(result.balls[1]!.x).toBeCloseTo(2, 6);
+    expect(result.balls[1]).toEqual({ x: 1.0, y: 0 });
+  });
+
+  it("ignores the walls for a held ball too", () => {
+    const balls: Ball[] = [{ x: 40, y: 40 }];
+    const result = settle(balls, { side: 6, held: 0, tolerance: PRECISE });
+    expect(result.balls[0]).toEqual({ x: 40, y: 40 });
+  });
+
+  it("shoves the neighbours aside the moment it is let go", () => {
+    const balls: Ball[] = [
+      { x: 0, y: 0 },
+      { x: 1.0, y: 0 },
+    ];
+    const result = settle(balls, { side: ROOMY, tolerance: PRECISE });
+    expect(distance(result.balls[0]!, result.balls[1]!)).toBeCloseTo(2, 6);
   });
 
   it("bumps balls away from a pusher without moving the pusher", () => {

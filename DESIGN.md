@@ -85,8 +85,12 @@ turn — which is the regime a packing game lives in almost all of the time.
   pair then resolves exactly in a single iteration, and dividing by the contact
   count keeps a pass non-expansive inside a dense cluster. This is the model's
   one constant and it is derived, not dialled in.
-- **A held ball exerts force and receives none.** That is what `IDEA.md`'s
-  "lifts clear of the others" is, in the model.
+- **A held ball is out of the arrangement entirely** — it exerts no force and
+  receives none, so it passes over its neighbours without disturbing them and
+  shoves them aside only when it is released. Anything less than that is not
+  `IDEA.md`'s "lifts clear of the others": a ball that stays pinned but keeps
+  pushing ploughs a furrow through the arrangement the player has built, which
+  is the opposite of being able to try a position before committing to it.
 - **Symmetry survives**, and this is the real reason to accumulate rather than
   resolve in place. Because nothing moves mid-pass, a symmetric arrangement
   settles symmetrically: N = 4 and N = 9 compact square instead of drifting on

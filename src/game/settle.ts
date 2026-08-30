@@ -31,7 +31,12 @@ export interface Pusher {
 
 export interface SettleOptions {
   side: Side;
-  /** Index of a ball that exerts force but receives none: the one being held. */
+  /**
+   * Index of the ball being carried. It is lifted clear of the arrangement, so
+   * it neither receives force nor exerts any — it passes over its neighbours
+   * without disturbing them, and only shoves them aside when it is released
+   * and comes back down.
+   */
   held?: number | null;
   /** Dragging on empty background bumps balls aside. */
   pusher?: Pusher | null;
@@ -86,10 +91,15 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
   let residual = 0;
   let wallForce = 0;
 
+  // A held ball is out of the arrangement entirely until it is let go.
+  const held = opts.held ?? null;
+
   // Ball against ball. Fixed index order, so the summation order is fixed too:
   // float addition is not associative, and that is all the order affects here.
   for (let i = 0; i < n; i++) {
+    if (i === held) continue;
     for (let j = i + 1; j < n; j++) {
+      if (j === held) continue;
       const dx = balls[j]!.x - balls[i]!.x;
       const dy = balls[j]!.y - balls[i]!.y;
       const distance = Math.hypot(dx, dy);
@@ -122,6 +132,7 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
   // and the force keeps growing beyond the ramp so it always comes back.
   const half = opts.side / 2;
   for (let i = 0; i < n; i++) {
+    if (i === held) continue;
     const ball = balls[i]!;
     const penetrations = [
       { axis: 0, depth: ball.x + BALL_RADIUS - half, sign: -1 },
@@ -143,6 +154,7 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
   const pusher = opts.pusher;
   if (pusher) {
     for (let i = 0; i < n; i++) {
+      if (i === held) continue;
       const dx = balls[i]!.x - pusher.x;
       const dy = balls[i]!.y - pusher.y;
       const distance = Math.hypot(dx, dy);
@@ -176,6 +188,7 @@ export function settleOnce(balls: readonly Ball[], opts: SettleOptions): PassRes
   const { fx, fy, contacts, residual, wallForce } = accumulate(balls, opts);
   const held = opts.held ?? null;
   const moved: Ball[] = [];
+
   let maxDisplacement = 0;
 
   for (let i = 0; i < balls.length; i++) {
