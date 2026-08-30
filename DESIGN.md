@@ -47,10 +47,12 @@ Two rules make this seam real rather than decorative:
 - **Units are ball radii.** Ball radius is exactly 1. Box side, par values and
   scores are all in radii, which is the convention the published packing tables
   use, so scores compare to them directly with no conversion.
-- **The box is an axis-aligned square** described by centre and side. Compact
-  starts by centring the box on the arrangement's bounding-box centre, then
-  shrinks about that centre; the ramped walls do the rest of the work of
-  pulling the arrangement together.
+- **The box is an axis-aligned square centred on the world origin**, which is
+  the centre of the screen. Its entire state is one number, the side; it never
+  moves and never tracks the arrangement. Compacting therefore herds a drifted
+  arrangement back toward the middle instead of closing around wherever it
+  happens to sit — which is also how the game says, without a word, that the
+  centre is where it happens.
 - **Wall ramps, not geometry.** A ball whose centre is within 1 radius outside
   a wall line is pushed inward by the overlap. There is no hard collision with a
   wall — the ramp is the whole wall model.
@@ -59,14 +61,46 @@ Two rules make this seam real rather than decorative:
   so compacting an unchanged arrangement twice returns the identical number.
   `IDEA.md` states this as a design promise; it is enforceable only if the
   randomness is addressable.
-- **Fixed iteration order.** Pairs are visited in index order, always. Relaxation
-  is Gauss-Seidel positional correction (move the two balls apart by half the
-  overlap each, immediately, in place) rather than accumulated forces: no
-  timestep, no damping constant to tune, and convergence is monotone in the
-  residual. This closes the first of `IDEA.md`'s open questions.
+- **Forces are accumulated, then applied** — the model is below. This closes
+  the first of `IDEA.md`'s open questions.
 - **Unit tests live beside the code** (`src/game/settle.test.ts`). `spec/` is
   reserved for tests that encode a published spec line; a solver test is not
   one. Both run under `pnpm check`.
+
+## The settling model
+
+Per iteration: compute every force, sum per ball, then move every ball. Nothing
+moves until all forces are known, so a ball with several contacts gets one
+coherent displacement instead of being shoved sequentially by each neighbour in
+turn — which is the regime a packing game lives in almost all of the time.
+
+- **Contact force is linear in overlap**, along the line of centres. For a pair,
+  overlap is `2 - distance` where positive; for a wall, it is how far the ball's
+  centre has come inside the 1-radius ramp, directed inward. A nonlinear contact
+  law would buy nothing here.
+- **Displacement is proportional to net force**: `dx = alpha * F`, overdamped,
+  no velocity and no momentum carried between iterations. That is `IDEA.md`'s
+  "the balls settle, they do not fly" stated as code rather than as a hope.
+- **`alpha = 0.5 / max(1, contacts)`** for each ball. An isolated overlapping
+  pair then resolves exactly in a single iteration, and dividing by the contact
+  count keeps a pass non-expansive inside a dense cluster. This is the model's
+  one constant and it is derived, not dialled in.
+- **A held ball exerts force and receives none.** That is what `IDEA.md`'s
+  "lifts clear of the others" is, in the model.
+- **Symmetry survives**, and this is the real reason to accumulate rather than
+  resolve in place. Because nothing moves mid-pass, a symmetric arrangement
+  settles symmetrically: N = 4 and N = 9 compact square instead of drifting on
+  whatever order the pairs happened to be visited in. A sequential solver cannot
+  promise that, and it would break it at exactly the grid levels `IDEA.md` calls
+  restful.
+- **Determinism still needs a fixed summation order**, since floating-point
+  addition is not associative, plus the seeded jitter above. Order now affects
+  the last bits rather than the outcome, which is a much easier thing to hold.
+- **Convergence** is measured on the largest per-ball displacement, under an
+  iteration cap. Largest residual overlap is a separate quantity, and it is the
+  one that answers whether the arrangement actually *fits*.
+- **Total inward wall force is a pressure readout**, free from this model and a
+  smoother stopping signal for compacting than residual overlap alone.
 
 ## Build order
 
@@ -101,24 +135,39 @@ figure.
 
 `settle.ts`: one pass and a converge-to-residual wrapper with an iteration cap.
 
-*Tests:* two overlapping balls end exactly touching; a ball inside the wall ramp
-ends on the wall line; an already-resolved arrangement is unchanged
-(idempotence); the same input twice gives bit-identical output; two coincident
-balls separate rather than hanging, and separate the same way every time;
-settling never pushes a ball outside the box; a pinned (dragged) ball does not
-move while its neighbours do.
+*Tests:* two overlapping balls end exactly touching after **one** iteration —
+that is the `alpha` calibration, so it fails loudly if the constant drifts; a
+ball inside the wall ramp ends on the wall line; an already-resolved
+arrangement is unchanged (idempotence); the same input twice gives bit-identical
+output; two coincident balls separate rather than hanging, and separate the same
+way every time; settling never pushes a ball outside the box; a held ball does
+not move while its neighbours do.
+
+Two more exist only because the model accumulates, and they are the ones worth
+writing first: a symmetric arrangement stays symmetric through a full settle,
+and permuting the ball indices permutes the result and changes nothing else. The
+second is the direct test of the accumulate-then-apply property — an accidental
+in-place write inside the force loop is invisible to every other test here and
+fails that one immediately.
 
 ### M3 — compacting
 
-`compact.ts`: `compactStep` shrinks the side a little, settles, and reports the
-residual overlap; the box backs off to the last side whose residual was under
-tolerance. `compact` runs it to completion for tests.
+`compact.ts`. The box is centred and square, so the side is the only variable
+and compacting is a one-dimensional search. `compactStep` shrinks the side a
+little, settles, and reports wall pressure and residual overlap; the box backs
+off to the last side that settled under tolerance. `compact` runs it to
+completion for tests.
 
 *Tests:* N = 1 compacts to side 2; N = 4 from a rough grid reaches 4 within
 tolerance; N = 2 from a diagonal start reaches 2 + sqrt(2); compacting an
 already-compacted arrangement returns the identical side — the "pressing the
 control repeatedly is never a strategy" promise, and the reason M2 bought
 determinism; a scattered start terminates inside the iteration cap.
+
+One more the centred box makes checkable: the same arrangement translated well
+off-centre compacts to the same side. It is the test that the ramps really do
+herd a drifted arrangement in, rather than the player being quietly punished for
+building in the wrong part of the screen.
 
 ### M4 — session and progression
 
@@ -189,14 +238,27 @@ a size-dependent design breaks and where drag targets are decided.
 
 ## Two collisions to expect
 
-**The 20-word budget will not survive level select.** `spec/crit-5.test.ts`
-caps visible text at 20 words. Twenty level numbers in the histogram exceed that
-on their own, and the test's own comment concedes that naming a level is not
-telling. The spec line being served is "no instructions anywhere", and the part
-of that test which actually encodes it is the instruction-shaped regex, not the
-word count. At M7, raise the budget and tighten the regex — in its own commit,
-before the feature that needs it, with the spec line it still serves named in
-the commit body.
+**The word budget is not yet measuring the right text.** Headings are now
+excluded from the count (`c41359f`); the instruction regex and the sentence
+check still read them, because "How to play" is telling wherever it is set.
+
+That buys the title back, not the level select — twenty histogram rows are
+twenty words on their own. And underneath that sits the larger problem:
+`spec/crit-5.test.ts` reads `dist/index.html` statically, so a game that builds
+its DOM at runtime would pass the prose tests because the built page is empty,
+not because it is quiet. Both halves resolve at M7:
+
+- **Server-render the opening state** in `index.astro` — level 1, one ball, a
+  nav with one row — and hydrate from there. The built HTML then really does
+  contain what a first-time player sees, which is the state the no-prose spec
+  line is about, and the static budget starts measuring something again.
+- **Add a mounted-DOM prose sensor** that builds the game in jsdom, walks it to
+  level 20 and to the ending, and applies the same regex to the text that
+  actually appears on screen. That is where the level select gets read, and it
+  makes the static budget a floor rather than the whole check.
+
+Raising the number itself is the last resort, not the first move: the count is
+the crude half of that test and the regex is the half that encodes the spec.
 
 **Keyboard input is not on this path.** `IDEA.md` leaves it open and untested.
 It is accessibility, not the intended mode, and the marked phone viewport has no
