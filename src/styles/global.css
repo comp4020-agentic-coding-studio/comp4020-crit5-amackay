@@ -1,20 +1,56 @@
+/* Two surfaces and one light. Everything sits on carpet; the box is a
+   cardboard tray laid on it, and the balls sit inside the tray. Nothing is
+   labelled, so the materials carry it: a ball pushed over the rim is on the
+   carpet, and that reads without a word.
+
+   The light is one soft source above and slightly left of the screen, so every
+   highlight is up-left and every shadow falls down-right. Lengths that belong
+   to the game are written in --r, one ball radius in screen pixels, published
+   per frame by render.ts. The fallback below only matters before the first
+   frame. */
 :root {
-  --ground: #101418;
-  --ink: #e8ecf0;
-  color-scheme: dark;
+  --carpet: #a4a897;
+  --carpet-lit: #b6b9a8;
+  --carpet-deep: #7f8371;
+
+  --card-lit: #d2ba97;
+  --card: #c4a980;
+  --card-deep: #b0946c;
+  --card-rim-lit: #dcc5a4;
+  --card-rim-deep: #a68a63;
+
+  --ink: #3d3f34;
+  --shadow: 62 46 30;
+
+  --r: 14px;
+  color-scheme: light;
 }
 
 * {
   box-sizing: border-box;
 }
 
+/* The stage is fixed, so nothing gives the body a height of its own --- and a
+   zero-height body hands the canvas a background whose positioning box has
+   collapsed, which flattens the carpet gradient to one colour. */
+html,
+body {
+  height: 100%;
+}
+
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
-  background: var(--ground);
   color: var(--ink);
   overflow: hidden;
   overscroll-behavior: none;
+  /* A pool of light over the middle, where the box is, falling off to the
+     corners; the noise on top is the fibre that stops it reading as paint. */
+  background-color: var(--carpet);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E"),
+    radial-gradient(100% 78% at 48% 36%, var(--carpet-lit) 0%, var(--carpet) 45%, var(--carpet-deep) 100%);
+  background-blend-mode: overlay, normal;
 }
 
 main {
@@ -32,7 +68,7 @@ h1 {
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  opacity: 0.45;
+  opacity: 0.42;
 }
 
 #stage {
@@ -55,24 +91,56 @@ h1 {
   top: 0;
   left: 0;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 32% 28%, #fdfefe 0%, #cfd8e0 18%, #8b97a4 55%, #4a5560 82%, #313a44 100%);
+  /* Cool and pale against warm cardboard, so a ball reads as a different
+     material from the thing it is sitting in. */
+  background: radial-gradient(
+    circle at 34% 27%,
+    #ffffff 0%,
+    #f1f4f7 20%,
+    #d5dbe1 56%,
+    #b0b9c2 84%,
+    #98a2ac 100%
+  );
   box-shadow:
-    0 0.35em 0.7em rgb(0 0 0 / 45%),
-    inset -0.12em -0.18em 0.35em rgb(0 0 0 / 35%);
+    calc(var(--r) * 0.05) calc(var(--r) * 0.13) calc(var(--r) * 0.26) rgb(var(--shadow) / 34%),
+    inset calc(var(--r) * -0.11) calc(var(--r) * -0.15) calc(var(--r) * 0.32) rgb(var(--shadow) / 20%);
   will-change: transform;
 }
 
+/* Carried: the same ball, further from the surface. Only the shadow says so,
+   which is the whole reason the palette went light. */
 .ball.held {
   box-shadow:
-    0 1.1em 1.6em rgb(0 0 0 / 55%),
-    inset -0.12em -0.18em 0.35em rgb(0 0 0 / 30%);
+    calc(var(--r) * 0.22) calc(var(--r) * 0.6) calc(var(--r) * 0.85) rgb(var(--shadow) / 28%),
+    inset calc(var(--r) * -0.11) calc(var(--r) * -0.15) calc(var(--r) * 0.32) rgb(var(--shadow) / 16%);
 }
 
+/* The tray. Its background stops at the square, so the fill is exactly the
+   inside of the box and the carpet is exactly the outside. The rim is an
+   outline pulled inward by half its width, so the band straddles the square
+   the way the rule does: a ridge on the line, falling away either side, not a
+   wall standing inside it. */
 .box {
   position: absolute;
   top: 0;
   left: 0;
-  border: 2px solid rgb(232 236 240 / 55%);
+  background:
+    radial-gradient(160% 160% at 34% 24%, var(--card-lit) 0%, var(--card) 66%, var(--card-deep) 100%);
+  box-shadow:
+    calc(var(--r) * 0.1) calc(var(--r) * 0.28) calc(var(--r) * 0.7) rgb(var(--shadow) / 26%),
+    inset 0 0 calc(var(--r) * 0.8) rgb(var(--shadow) / 14%);
   will-change: transform;
+}
+
+/* The rim. A border on a box inset by half its own width straddles the square,
+   and mitred corners turn the bevel for free --- lit on the two sides facing
+   the light, shadowed on the two facing away --- so it reads as something a
+   ball goes over rather than a line it stops at. */
+.box::before {
+  content: "";
+  position: absolute;
+  inset: calc(var(--r) * -0.11);
+  border: calc(var(--r) * 0.22) solid;
+  border-color:
+    var(--card-rim-lit) var(--card-rim-deep) var(--card-rim-deep) var(--card-rim-lit);
 }

@@ -41,6 +41,12 @@ export function render(
 ): void {
   reconcile(surface, balls.length);
 
+  // One ball radius in screen pixels, published to CSS so shadow and rim
+  // widths are stated in radii and survive the level-change zoom. A shadow
+  // sized in em would be pinned to the root font size and would come adrift
+  // from the ball it belongs to the moment the view rescaled.
+  surface.container.style.setProperty("--r", `${BALL_RADIUS * view.scale}px`);
+
   const diameter = 2 * BALL_RADIUS * view.scale;
   for (let i = 0; i < balls.length; i++) {
     const screen = worldToScreen(view, balls[i]!);

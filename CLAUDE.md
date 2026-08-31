@@ -67,6 +67,12 @@ from a previous week, where it silently 404s every asset on the live site.
 - **`public/` is fetch-by-URL only**, and jsdom has no origin to resolve a
   relative `fetch` against, so anything in there is out of reach of the spec
   tests. Data the page needs belongs in `src/`, imported.
+- **A body with no height silently flattens its own background.** Every part of
+  the stage is `position: fixed`, so the body's box is zero-high; a background
+  on it still paints the whole canvas, but its *positioning* box has collapsed,
+  so a gradient renders as one flat colour with no error anywhere. `html, body
+  { height: 100% }` is what makes it a gradient again. Sample the rendered
+  pixel --- the CSS looked right in the file and in DevTools both.
 - **Commit `pnpm-lock.yaml` with any dependency change**; CI installs
   `--frozen-lockfile`.
 - **`astro check` typechecks `scripts/` as one global scope.** A `scripts/*.ts`
