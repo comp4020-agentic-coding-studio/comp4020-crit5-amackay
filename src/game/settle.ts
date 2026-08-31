@@ -1,3 +1,4 @@
+import { exclusionAt } from "./descent";
 import { BALL_RADIUS, WALL_WIDTH, type Ball, type Side } from "./types";
 
 // Quasi-static settling. Per pass: compute every force, sum per ball, then move
@@ -41,19 +42,19 @@ export interface Pusher {
 export interface SettleOptions {
   side: Side;
   /**
-   * The ball being carried. Lifted clear of the arrangement: it neither
-   * receives force nor exerts any, so it passes over its neighbours without
-   * disturbing them.
+   * The one ball that is off the plane, and how high, in radii.
+   *
+   * Its position in plan is set by something other than the solver — the
+   * pointer while it is carried, the descent while it is coming down — so it
+   * receives no force at all, from its neighbours or from a wall. What it
+   * *exerts* follows its height: it reaches its neighbours only as far as
+   * `exclusionAt` allows, which is nothing at all at 2 and a full diameter at 0.
+   *
+   * One number for what used to be three states. Carried is 2, mid-descent is
+   * anything between, and 0 is an ordinary member of the arrangement — so a
+   * height of 0 here means the same thing as no raised ball at all.
    */
-  lifted?: number | null;
-  /**
-   * The ball coming back down after release. Its position in plan is fixed —
-   * it is pushed by nothing, not even a wall — while it shoves its neighbours
-   * aside to make room. This is the descent IDEA.md describes, and it is a
-   * different thing from being carried: carried disturbs nothing, descending
-   * disturbs everything and is itself immovable.
-   */
-  pinned?: number | null;
+  raised?: { index: number; height: number } | null;
   /** Dragging on empty background bumps balls aside. */
   pusher?: Pusher | null;
   /**
@@ -142,6 +143,16 @@ function rimAt(point: Ball, half: number): { distance: number; nx: number; ny: n
     : { distance, nx: 0, ny: sy };
 }
 
+/**
+ * Which ball, if any, is off the plane. A height of 0 is a ball that has landed
+ * and is an ordinary member again, so it is not raised at all — which makes the
+ * end of a descent a boundary case that resolves itself rather than one every
+ * caller has to remember.
+ */
+function raisedIndex(opts: SettleOptions): number {
+  return opts.raised && opts.raised.height > 0 ? opts.raised.index : -1;
+}
+
 interface Accumulation extends Measurement {
   fx: Float64Array;
   fy: Float64Array;
@@ -161,21 +172,24 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
   let residual = 0;
   let wallForce = 0;
 
-  // A carried ball is out of the arrangement entirely until it is let go.
-  const lifted = opts.lifted ?? null;
+  const raised = raisedIndex(opts);
+  // How far the raised ball reaches. At carry height this is exactly 0, so the
+  // pair is skipped before anything else happens and a carried ball disturbs
+  // nothing — not even a neighbour it is sitting precisely on top of, since a
+  // distance of 0 is still not less than a reach of 0.
+  const reach = opts.raised ? exclusionAt(opts.raised.height) : CONTACT_DISTANCE;
 
   // Ball against ball. Fixed index order, so the summation order is fixed too:
   // float addition is not associative, and that is all the order affects here.
   for (let i = 0; i < n; i++) {
-    if (i === lifted) continue;
     for (let j = i + 1; j < n; j++) {
-      if (j === lifted) continue;
+      const contact = i === raised || j === raised ? reach : CONTACT_DISTANCE;
       const dx = balls[j]!.x - balls[i]!.x;
       const dy = balls[j]!.y - balls[i]!.y;
       const distance = Math.hypot(dx, dy);
-      if (distance >= CONTACT_DISTANCE) continue;
+      if (distance >= contact) continue;
 
-      const overlap = CONTACT_DISTANCE - distance;
+      const overlap = contact - distance;
       let ux: number;
       let uy: number;
       if (distance < DEGENERATE) {
@@ -215,7 +229,9 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
   const half = opts.side / 2;
   const mid = half + WALL_WIDTH / 2;
   for (let i = 0; i < n; i++) {
-    if (i === lifted) continue;
+    // A ball off the plane is over the box, not in it: no wall reaches it, and
+    // it is not the box's to contain until it lands.
+    if (i === raised) continue;
 
     // Containment is a separate question from force: the box does not hold a
     // ball whose centre is within a radius of the inner face or beyond it,
@@ -241,7 +257,7 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
   const pusher = opts.pusher;
   if (pusher) {
     for (let i = 0; i < n; i++) {
-      if (i === lifted) continue;
+      if (i === raised) continue;
       const dx = balls[i]!.x - pusher.x;
       const dy = balls[i]!.y - pusher.y;
       const distance = Math.hypot(dx, dy);
@@ -275,8 +291,7 @@ export interface PassResult extends Measurement {
 /** One accumulate-then-apply pass. */
 export function settleOnce(balls: readonly Ball[], opts: SettleOptions): PassResult {
   const { fx, fy, contacts, residual, wallForce } = accumulate(balls, opts);
-  const lifted = opts.lifted ?? null;
-  const pinned = opts.pinned ?? null;
+  const raised = raisedIndex(opts);
   const moved: Ball[] = [];
 
   let maxDisplacement = 0;
@@ -285,12 +300,12 @@ export function settleOnce(balls: readonly Ball[], opts: SettleOptions): PassRes
 
   for (let i = 0; i < balls.length; i++) {
     const ball = balls[i]!;
-    // A carried ball is moved by the pointer, not by us; a descending one has
-    // its position in plan fixed while everything else gets out of its way.
-    // Both are still held on screen.
+    // A ball off the plane is moved by the pointer or by its own fall, not by
+    // us: its position in plan is fixed while everything else gets out of its
+    // way. It is still held on screen.
     let x = ball.x;
     let y = ball.y;
-    if (i !== lifted && i !== pinned) {
+    if (i !== raised) {
       // Dividing by the contact count keeps a pass non-expansive inside a dense
       // cluster while leaving the isolated pair exact.
       const alpha = ALPHA / Math.max(1, contacts[i]!);

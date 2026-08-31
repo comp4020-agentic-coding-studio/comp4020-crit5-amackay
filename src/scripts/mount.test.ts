@@ -129,11 +129,18 @@ describe("dragging a ball", () => {
     settleFrames(game);
 
     const [a, b] = game.session.balls as [Ball, Ball];
-    // Not exact: once the neighbours have made room the descent ends and the
-    // ball rejoins the arrangement, so a hair of ordinary relaxation follows.
-    // What matters is that it is where it was dropped, not shunted off it.
-    expect(a.x).toBeCloseTo(3, 3);
-    expect(a.y).toBeCloseTo(0, 3);
+    // Not exact, and it cannot be: the descent ends when the ball lands, not
+    // when the arrangement has finished getting out of the way, so whatever
+    // overlap the last airborne frame left over is shared between the pair the
+    // moment the ball rejoins them. How much that is depends on the frame rate,
+    // so a precision is the wrong thing to assert.
+    //
+    // A hundredth of a radius is the bar instead, because that is below what
+    // anyone can see: at the zoom a level-3 box is drawn at, it is under one
+    // pixel. What matters is that the ball is where it was dropped rather than
+    // shunted off it.
+    const INVISIBLE = 0.01;
+    expect(Math.hypot(a.x - 3, a.y - 0)).toBeLessThan(INVISIBLE);
     // Which way the neighbour goes is not a fact about the game: dropped
     // exactly on top of it, the separation direction comes from the seeded
     // jitter. That it moved a long way, and that they end up touching, is.
@@ -241,6 +248,48 @@ describe("the frame loop", () => {
     game.step(1 / 60);
     expect(game.session.balls).not.toEqual(before);
     game.destroy();
+  });
+
+  it("drops a released ball to the same rest whatever the deltas were", () => {
+    // The fall is stepped by a delta, so it has to arrive in the same place on
+    // a slow machine as on a fast one. Dropped exactly on top of a neighbour,
+    // which is the case where the descent does the most work.
+    const drop = (deltas: number[]) => {
+      const game = mount([
+        { x: -3, y: 0 },
+        { x: 3, y: 0 },
+      ]);
+      const from = at(game, { x: -3, y: 0 });
+      const onto = at(game, { x: 3, y: 0 });
+      game.pointerDown(from.x, from.y);
+      game.pointerMove(onto.x, onto.y);
+      game.pointerUp();
+      for (const dt of deltas) game.step(dt);
+      const balls = game.session.balls.map((b) => ({ ...b }));
+      game.destroy();
+      return balls;
+    };
+
+    // Same bar as the drop point itself: a hundredth of a radius is under a
+    // pixel at the zoom this is drawn at. The three schedules currently agree
+    // to about 5e-4, so this is a bound with room in it rather than a fitted
+    // number.
+    const AGREEMENT = 0.01;
+    const steady = drop(Array.from({ length: 180 }, () => 1 / 60));
+    const fine = drop(Array.from({ length: 720 }, () => 1 / 240));
+    // A frame rate that lurches, which is the case a fixed delta never tests.
+    const ragged = drop(
+      Array.from({ length: 300 }, (_, i) => (i % 7 === 0 ? 1 / 15 : 1 / 120)),
+    );
+
+    for (let i = 0; i < steady.length; i++) {
+      expect(Math.hypot(steady[i]!.x - fine[i]!.x, steady[i]!.y - fine[i]!.y), `fine, ball ${i}`)
+        .toBeLessThan(AGREEMENT);
+      expect(
+        Math.hypot(steady[i]!.x - ragged[i]!.x, steady[i]!.y - ragged[i]!.y),
+        `ragged, ball ${i}`,
+      ).toBeLessThan(AGREEMENT);
+    }
   });
 
   it("reaches the same resting arrangement whatever the delta was", () => {

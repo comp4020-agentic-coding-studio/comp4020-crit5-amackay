@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CARRY_HEIGHT, exclusionAt } from "./descent";
 import { measure, settle, settleOnce } from "./settle";
 import { BALL_RADIUS, WALL_WIDTH, type Ball } from "./types";
 
@@ -267,6 +268,11 @@ describe("determinism", () => {
 });
 
 describe("held and pushed", () => {
+  /** Ball 0, up at carry height: the state a drag holds it in. */
+  const CARRIED = { index: 0, height: CARRY_HEIGHT };
+  /** Ball 0, part-way down: still immovable, but now reaching across. */
+  const MID_FALL = { index: 0, height: 0.5 };
+
   it("lifts a carried ball clear, disturbing nothing it passes over", () => {
     // IDEA.md: a dragged ball "moves freely without collision". It is out of
     // the arrangement entirely while carried, so a neighbour it is sitting on
@@ -275,14 +281,14 @@ describe("held and pushed", () => {
       { x: 0, y: 0 },
       { x: 1.0, y: 0 },
     ];
-    const result = settle(balls, { side: ROOMY, lifted: 0, tolerance: PRECISE });
+    const result = settle(balls, { side: ROOMY, raised: CARRIED, tolerance: PRECISE });
     expect(result.balls[0]).toEqual({ x: 0, y: 0 });
     expect(result.balls[1]).toEqual({ x: 1.0, y: 0 });
   });
 
   it("ignores the walls for a carried ball too", () => {
     const balls: Ball[] = [{ x: 40, y: 40 }];
-    const result = settle(balls, { side: 6, lifted: 0, tolerance: PRECISE });
+    const result = settle(balls, { side: 6, raised: CARRIED, tolerance: PRECISE });
     expect(result.balls[0]).toEqual({ x: 40, y: 40 });
   });
 
@@ -297,23 +303,67 @@ describe("held and pushed", () => {
 
   it("holds a descending ball still and moves everything out of its way", () => {
     // IDEA.md: releasing "fixes its position in plan and lowers it back down,
-    // pushing its neighbours aside as it descends". Being pinned is a third
-    // state, not the same as being carried: carried disturbs nothing,
-    // descending disturbs everything and is itself immovable.
+    // pushing its neighbours aside as it descends". Descending is not the same
+    // as being carried, and the difference is now the height itself: carried
+    // reaches nothing, descending reaches as far as its height allows and is
+    // itself immovable.
     const balls: Ball[] = [
       { x: 0, y: 0 },
       { x: 1.0, y: 0 },
       { x: -1.0, y: 0 },
     ];
-    const result = settle(balls, { side: ROOMY, pinned: 0, tolerance: PRECISE });
+    const result = settle(balls, { side: ROOMY, raised: MID_FALL, tolerance: PRECISE });
+    const reach = exclusionAt(MID_FALL.height);
     expect(result.balls[0]).toEqual({ x: 0, y: 0 });
-    expect(result.balls[1]!.x).toBeCloseTo(2, 6);
-    expect(result.balls[2]!.x).toBeCloseTo(-2, 6);
+    expect(result.balls[1]!.x).toBeCloseTo(reach, 6);
+    expect(result.balls[2]!.x).toBeCloseTo(-reach, 6);
+    // Still short of a full diameter: the ball has further to fall, and the
+    // neighbours have further to go when it does.
+    expect(reach).toBeLessThan(2);
   });
 
   it("does not let a wall move a descending ball either", () => {
-    const result = settle([{ x: 4.5, y: 0 }], { side: 10, pinned: 0, tolerance: PRECISE });
+    const result = settle([{ x: 4.5, y: 0 }], { side: 10, raised: MID_FALL, tolerance: PRECISE });
     expect(result.balls[0]).toEqual({ x: 4.5, y: 0 });
+  });
+
+  it("makes a landed ball an ordinary member of the arrangement again", () => {
+    // A height of 0 is not a fourth state to remember: it is the absence of the
+    // one state there is, so the end of a descent needs no special case.
+    const balls: Ball[] = [
+      { x: 0, y: 0 },
+      { x: 1.0, y: 0 },
+    ];
+    const landed = settle(balls, {
+      side: ROOMY,
+      raised: { index: 0, height: 0 },
+      tolerance: PRECISE,
+    });
+    const plain = settle(balls, { side: ROOMY, tolerance: PRECISE });
+    expect(landed.balls).toEqual(plain.balls);
+    // And it moved, which a raised ball never does.
+    expect(landed.balls[0]!.x).not.toBe(0);
+  });
+
+  it("reaches further across the lower it gets", () => {
+    // The whole of the descent, as one property: a released ball's grip on its
+    // neighbours grows from nothing to a full diameter as it comes down.
+    const balls: Ball[] = [
+      { x: 0, y: 0 },
+      { x: 0.1, y: 0 },
+    ];
+    let previous = 0;
+    for (const height of [2, 1.75, 1.5, 1.0, 0.5, 0.25, 0]) {
+      const result = settle(balls, {
+        side: ROOMY,
+        raised: { index: 0, height },
+        tolerance: PRECISE,
+      });
+      const gap = Math.abs(result.balls[1]!.x - result.balls[0]!.x);
+      expect(gap, `at height ${height}`).toBeGreaterThanOrEqual(previous);
+      previous = gap;
+    }
+    expect(previous).toBeCloseTo(2, 6);
   });
 
   it("bumps balls away from a pusher without moving the pusher", () => {
@@ -355,7 +405,7 @@ describe("the edge of the screen", () => {
   });
 
   it("holds a carried ball on screen too", () => {
-    const result = settleOnce([{ x: 40, y: 0 }], { side: 4, bounds, lifted: 0 });
+    const result = settleOnce([{ x: 40, y: 0 }], { side: 4, bounds, raised: { index: 0, height: CARRY_HEIGHT } });
     expect(result.balls[0]!.x).toBe(bounds.x);
   });
 

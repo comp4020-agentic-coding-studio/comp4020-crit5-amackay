@@ -1,3 +1,4 @@
+import { CARRY_HEIGHT, release, stepDescent, type Descent } from "../game/descent";
 import { settleOnce } from "../game/settle";
 import { newSession, type Session } from "../game/session";
 import { ballAt, fitView, screenToWorld, viewBounds, type ViewTransform } from "../game/view";
@@ -40,9 +41,6 @@ interface Grab {
   offset: Ball;
 }
 
-/** Below this much movement in a pass, a descending ball has landed. */
-const DESCENT_SETTLED = 1e-4;
-
 export interface GameOptions {
   session?: Session;
   /** Overrides the measured surface size; tests pass one, the page does not. */
@@ -53,8 +51,12 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   const surface: Surface = createSurface(container);
   let session: Session = opts.session ?? newSession();
   let grab: Grab | null = null;
-  /** A released ball, still coming down and still shoving neighbours aside. */
-  let descending: number | null = null;
+  /**
+   * The released ball on its way back down, and how far it has left to fall.
+   * Only ever one ball is off the plane, so this and a carried ball are the same
+   * slot seen twice, and never both at once.
+   */
+  let falling: (Descent & { index: number }) | null = null;
   let view: ViewTransform = fitView(session.side, 0, 0);
 
   function measureSurface(): { width: number; height: number } {
@@ -75,23 +77,36 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     render(surface, session.balls, session.side, view, grab?.ball ?? null);
   }
 
-  function step(_deltaSeconds: number): void {
+  function step(deltaSeconds: number): void {
     refreshView();
+    // The fall is advanced once per settling pass, not once per frame. Dropping
+    // the ball a whole frame's worth and only then letting the arrangement
+    // react leaves whatever overlap that jump created to be shared out the
+    // instant the ball lands — so how far the drop ends up from where the
+    // player put it would depend on the frame rate, and badly on a frame rate
+    // that lurches. Interleaved, the fall stays quasi-static like everything
+    // else here.
+    const descentStep = deltaSeconds / PASSES_PER_FRAME;
+
     for (let pass = 0; pass < PASSES_PER_FRAME; pass++) {
+      if (falling) {
+        const next = stepDescent(falling, descentStep);
+        falling = next.height > 0 ? { index: falling.index, ...next } : null;
+      }
       const result = settleOnce(session.balls, {
         side: session.side,
-        lifted: grab?.ball ?? null,
-        pinned: descending,
+        raised:
+          grab?.ball != null
+            ? { index: grab.ball, height: CARRY_HEIGHT }
+            : falling
+              ? { index: falling.index, height: falling.height }
+              : null,
         pusher: grab && grab.ball === null ? grab.world : null,
         bounds,
       });
       session = { ...session, balls: result.balls };
-      // The descent is over once the arrangement has finished getting out of
-      // the way. Self-terminating, so no clock is involved.
-      if (descending !== null && result.maxDisplacement < DESCENT_SETTLED) {
-        descending = null;
-      }
-      if (result.maxDisplacement === 0) break;
+      // A still arrangement is only finished if nothing is still coming down.
+      if (result.maxDisplacement === 0 && !falling) break;
     }
     draw();
   }
@@ -108,9 +123,10 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
       world,
       offset: { x: centre.x - world.x, y: centre.y - world.y },
     };
-    // Picking a ball up cancels any descent still in progress, including its
-    // own: it is back in the air.
-    if (ball !== null && ball === descending) descending = null;
+    // Only ever one ball is off the plane, so picking one up ends any fall in
+    // progress — its own, which is back in the air, or another's, which lands
+    // where it had got to.
+    if (ball !== null) falling = null;
     draw();
   }
 
@@ -128,9 +144,10 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   }
 
   function pointerUp(): void {
-    // Releasing fixes the ball where it is and lowers it: from here it pushes
-    // its neighbours aside and is moved by nothing until they have made room.
-    if (grab?.ball != null) descending = grab.ball;
+    // Releasing fixes the ball where it is and drops it: from here it pushes its
+    // neighbours aside as it falls, reaching further across as it gets lower,
+    // and is moved by nothing until it lands.
+    if (grab?.ball != null) falling = { index: grab.ball, ...release() };
     grab = null;
   }
 
