@@ -16,12 +16,9 @@ const stage = document.querySelector<HTMLElement>("#stage");
 
 if (stage) {
   const game = createGame(stage, { session: newSession(PLAYTEST_START_LEVEL) });
-  let previous = performance.now();
 
-  const frame = (now: number) => {
-    const delta = Math.min((now - previous) / 1000, 0.1);
-    previous = now;
-    game.step(delta);
+  const frame = () => {
+    game.step();
     requestAnimationFrame(frame);
   };
 

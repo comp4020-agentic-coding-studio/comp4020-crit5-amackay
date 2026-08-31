@@ -39,7 +39,7 @@ function at(game: Game, point: Ball): { x: number; y: number } {
 }
 
 function settleFrames(game: Game, frames = 200): void {
-  for (let i = 0; i < frames; i++) game.step(1 / 60);
+  for (let i = 0; i < frames; i++) game.step();
 }
 
 describe("mounting", () => {
@@ -67,7 +67,7 @@ describe("mounting", () => {
   it("writes a finite position for every ball", () => {
     // The NaN this guards against would render nothing and throw nothing.
     const game = mount([{ x: 1, y: -1 }]);
-    game.step(1 / 60);
+    game.step();
     const transform = container.querySelector<HTMLElement>(".ball")!.style.transform;
     expect(transform).toMatch(/^translate\(-?[\d.]+px, -?[\d.]+px\)$/);
     game.destroy();
@@ -85,7 +85,7 @@ describe("dragging a ball", () => {
 
     game.pointerDown(from.x, from.y);
     game.pointerMove(to.x, to.y);
-    game.step(1 / 60);
+    game.step();
     game.pointerUp();
 
     expect(game.session.balls[0]!.x).toBeCloseTo(-1, 6);
@@ -163,7 +163,7 @@ describe("dragging a ball", () => {
     game.pointerDown(from.x, from.y);
     game.pointerMove(onto.x, onto.y);
     game.pointerUp();
-    game.step(1 / 60); // mid-fall, nowhere near landed
+    game.step(); // mid-fall, nowhere near landed
 
     game.pointerDown(at(game, { x: 9, y: 0 }).x, at(game, { x: 9, y: 0 }).y);
     game.pointerMove(at(game, { x: 9, y: 4 }).x, at(game, { x: 9, y: 4 }).y);
@@ -186,7 +186,7 @@ describe("dragging a ball", () => {
 
     game.pointerDown(edge.x, edge.y);
     game.pointerMove(to.x, to.y);
-    game.step(1 / 60);
+    game.step();
 
     // Moved by the pointer's displacement, not to the pointer.
     expect(game.session.balls[0]!.x).toBeCloseTo(4, 6);
@@ -247,7 +247,7 @@ describe("real pointer events", () => {
 
     container.dispatchEvent(pointer("pointerdown", origin.x, origin.y));
     container.dispatchEvent(pointer("pointermove", target.x, target.y));
-    game.step(1 / 60);
+    game.step();
     container.dispatchEvent(pointer("pointerup", target.x, target.y));
 
     expect(game.session.balls[0]!.x).toBeCloseTo(2, 6);
@@ -273,87 +273,34 @@ describe("the frame loop", () => {
     ]);
     const before = game.session.balls.map((b) => ({ ...b }));
     expect(game.session.balls).toEqual(before);
-    game.step(1 / 60);
+    game.step();
     expect(game.session.balls).not.toEqual(before);
     game.destroy();
   });
 
-  it("drops a released ball to the same rest whatever the deltas were", () => {
-    // The fall is stepped by a delta, so it has to arrive in the same place on
-    // a slow machine as on a fast one. Dropped exactly on top of a neighbour,
-    // which is the case where the descent does the most work.
-    const drop = (deltas: number[]) => {
-      const game = mount([
-        { x: -3, y: 0 },
-        { x: 3, y: 0 },
-      ]);
-      const from = at(game, { x: -3, y: 0 });
-      const onto = at(game, { x: 3, y: 0 });
-      game.pointerDown(from.x, from.y);
-      game.pointerMove(onto.x, onto.y);
-      game.pointerUp();
-      for (const dt of deltas) game.step(dt);
-      const balls = game.session.balls.map((b) => ({ ...b }));
-      game.destroy();
-      return balls;
-    };
-
-    // Same bar as the drop point itself: a hundredth of a radius is under a
-    // pixel at the zoom this is drawn at.
-    const AGREEMENT = 0.01;
-    // Six seconds each, which is well past rest — the paths through a fall
-    // differ with the delta and only the arrangement they arrive at does not,
-    // so all three have to be given time to arrive.
-    const steady = drop(Array.from({ length: 360 }, () => 1 / 60));
-    const fine = drop(Array.from({ length: 1440 }, () => 1 / 240));
-    // A frame rate that lurches, which is the case a fixed delta never tests.
-    // Six frames at 1/120 and one at 1/15 average to 1/60, so this is the same
-    // six seconds arriving unevenly.
-    const ragged = drop(
-      Array.from({ length: 360 }, (_, i) => (i % 7 === 6 ? 1 / 15 : 1 / 120)),
-    );
-
-    for (let i = 0; i < steady.length; i++) {
-      expect(Math.hypot(steady[i]!.x - fine[i]!.x, steady[i]!.y - fine[i]!.y), `fine, ball ${i}`)
-        .toBeLessThan(AGREEMENT);
-      expect(
-        Math.hypot(steady[i]!.x - ragged[i]!.x, steady[i]!.y - ragged[i]!.y),
-        `ragged, ball ${i}`,
-      ).toBeLessThan(AGREEMENT);
-    }
-  });
-
-  it("reaches the same resting arrangement whatever the delta was", () => {
-    // The spec asks the game to be playable at both marked viewports, which
-    // means on whatever hardware turns up: no arrangement a player is scored on
-    // may depend on the frame rate.
-    //
-    // This used to compare the same *step count* at two deltas, which held only
-    // because step ignored its delta altogether — it was measuring frame-count
-    // independence and calling it frame-rate independence. The property is that
-    // the same amount of simulated *time* reaches the same rest.
-    //
-    // It is exact rather than approximate because the loop spends a frame's
-    // delta in fixed slices: two frame rates covering the same span run the
-    // same sequence of slices, not two discretisations of it. The general
-    // guarantee is one unspent slice of lag, which is why this compares equal
-    // spans rather than equal step counts.
+  it("runs the same way every time", () => {
+    // The loop takes a frame as a tick rather than a duration, so there is no
+    // delta left for a machine to vary — what used to be a frame-rate property
+    // is now plain determinism, and it is the stronger of the two. Two games
+    // given the same input must agree to the last bit, drop and all.
     const start: Ball[] = [
       { x: -0.4, y: 0.1 },
       { x: 0.4, y: -0.1 },
       { x: 0, y: 0.5 },
     ];
-    const slow = mount(start.map((b) => ({ ...b })));
-    const fast = mount(start.map((b) => ({ ...b })));
-    for (let i = 0; i < 80; i++) slow.step(1 / 10); // eight seconds
-    for (let i = 0; i < 1920; i++) fast.step(1 / 240); // the same eight seconds
-    for (let i = 0; i < slow.session.balls.length; i++) {
-      const a = slow.session.balls[i]!;
-      const b = fast.session.balls[i]!;
-      expect(Math.hypot(a.x - b.x, a.y - b.y), `ball ${i}`).toBe(0);
-    }
-    slow.destroy();
-    fast.destroy();
+    const play = () => {
+      const game = mount(start.map((b) => ({ ...b })));
+      const from = at(game, start[2]!);
+      const onto = at(game, { x: 0.2, y: -0.2 });
+      game.pointerDown(from.x, from.y);
+      game.pointerMove(onto.x, onto.y);
+      game.pointerUp();
+      settleFrames(game);
+      const balls = game.session.balls.map((b) => ({ ...b }));
+      game.destroy();
+      return balls;
+    };
+    expect(play()).toEqual(play());
   });
 });
 

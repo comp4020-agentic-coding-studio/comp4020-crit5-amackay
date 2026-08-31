@@ -9,36 +9,40 @@ import { createSurface, render, type Surface } from "./render";
 // call into src/game; nothing in there knows this file exists.
 
 /**
- * The slice of time the simulation advances in. A frame hands over however long
- * it happened to take, and that is spent in whole slices of this size, with the
- * remainder carried to the next frame.
+ * The frame rate the simulation assumes, whatever the display actually manages.
  *
- * A fixed slice rather than the frame's own delta, because the speed cap made
- * the delta matter: an arrangement relaxes into whichever rest state its path
- * reaches, and once the path depended on the frame rate, so did the score taken
- * from it. Measured before this landed: the same drop compacted to 3.9785 at
- * 10fps and 3.9746 at 240fps. Small, and still a player's hardware showing up
- * in their score.
+ * Nothing here is timed and nothing is scored on the clock, so a frame is just
+ * a tick: the game advances one step per frame and takes the delta on trust.
+ * That buys back the whole variable-frame-rate apparatus --- no accumulator, no
+ * leftover, no catch-up budget --- and makes every run of the same input
+ * identical, which is a stronger guarantee than pacing by a wall clock ever
+ * gave. The cost is that a 120Hz display settles at twice the speed of a 60Hz
+ * one; for a puzzle with no timer that is a difference in how brisk it feels
+ * and in nothing else.
  */
-const STEP_SECONDS = 1 / 120;
+const FRAME_RATE = 60;
 
 /**
- * The most simulated time one frame may make up, so a tab that was backgrounded
- * for a minute resumes rather than grinding through a minute of settling.
- */
-const MAX_CATCHUP = 0.25;
-
-/**
- * Settling passes run per slice. Deliberately a count rather than a function of
+ * Settling passes run per frame. Deliberately a count rather than a function of
  * the elapsed time: scores come from compact(), which runs to convergence in a
  * single call, so no score anywhere depends on the frame rate. This number only
- * decides how finely a slice is resolved.
+ * decides how finely a frame is resolved.
  */
 const PASSES_PER_STEP = 6;
 
+/**
+ * The furthest a ball may be pushed in one pass. Everything the player watches
+ * move is paced by this and by nothing else --- it is the one dial for how the
+ * game feels in motion.
+ */
+const MAX_STEP = MAX_SPEED / FRAME_RATE / PASSES_PER_STEP;
+
 export interface Game {
-  /** Advance by a frame. The caller owns requestAnimationFrame, not this. */
-  step(deltaSeconds: number): void;
+  /**
+   * Advance by one frame. The caller owns requestAnimationFrame, not this, and
+   * a frame is a tick rather than a duration --- see FRAME_RATE.
+   */
+  step(): void;
   /** Drive input without a layout: coordinates are in screen pixels. */
   pointerDown(x: number, y: number): void;
   pointerMove(x: number, y: number): void;
@@ -103,38 +107,19 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     return falling ? { index: falling.index, height: falling.height } : null;
   }
 
-  /** Time handed over by frames but not yet simulated, in seconds. */
-  let pending = 0;
-
-  function step(deltaSeconds: number): void {
+  function step(): void {
     refreshView();
-    pending = Math.min(pending + Math.max(0, deltaSeconds), MAX_CATCHUP);
-    while (pending >= STEP_SECONDS) {
-      pending -= STEP_SECONDS;
-      advance(STEP_SECONDS);
-    }
-    draw();
-  }
-
-  function advance(dt: number): void {
-    // The fall is advanced once per settling pass, not once per slice. Dropping
-    // the ball a whole slice's worth and only then letting the arrangement
-    // react leaves whatever overlap that jump created to be shared out the
-    // instant the ball lands, which pushes the drop off the spot the player
-    // chose. Interleaved, the fall stays quasi-static like everything else.
-    const descentStep = dt / PASSES_PER_STEP;
-    // Only the frame loop caps: compacting runs the solver uncapped, so no
-    // score is touched by this.
-    const maxStep = (MAX_SPEED * dt) / PASSES_PER_STEP;
-
     for (let pass = 0; pass < PASSES_PER_STEP; pass++) {
+      // The fall is advanced once per pass rather than once per frame, so the
+      // arrangement reacts to the room the ball needs as it needs it rather
+      // than after the fact.
       if (falling) {
-        const next = stepDescent(falling, descentStep);
+        const next = stepDescent(falling, 1 / FRAME_RATE / PASSES_PER_STEP);
         falling = next.height > 0 ? { index: falling.index, ...next } : null;
       }
       const result = settleOnce(session.balls, {
         side: session.side,
-        maxStep,
+        maxStep: MAX_STEP,
         raised: raisedBall(),
         pusher: grab && grab.ball === null ? grab.world : null,
         bounds,
@@ -143,6 +128,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
       // A still arrangement is only finished if nothing is still coming down.
       if (result.maxDisplacement === 0 && !falling) break;
     }
+    draw();
   }
 
   function pointerDown(x: number, y: number): void {

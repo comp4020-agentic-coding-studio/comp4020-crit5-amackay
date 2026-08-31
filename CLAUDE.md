@@ -99,8 +99,8 @@ from a previous week, where it silently 404s every asset on the live site.
   whole family of rest states and the path picks one. A test comparing positions
   across two frame rates is asserting something untrue the moment anything in
   the loop depends on the delta --- and the score follows the arrangement, so
-  this is not cosmetic. Fix it by making every frame rate run the same fixed
-  slices, not by loosening the tolerance.
+  this is not cosmetic. Fix it by taking the delta out of the loop --- a frame is
+  a tick, not a duration --- not by loosening the tolerance.
 - **`agent-browser eval` keeps its context between calls.** A script that
   declares anything at the top level throws `Identifier has already been
   declared` on the second run, and a bare `const top`/`const stage` collides

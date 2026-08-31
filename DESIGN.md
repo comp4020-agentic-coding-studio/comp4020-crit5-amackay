@@ -149,13 +149,17 @@ What the milestones left behind, all still true and none obvious from the code:
   that long: the ball lands as the neighbour arrives. Picked independently, the
   fall outran the shove and the drop slid 0.37 radii off the spot the player
   chose. Tune one and the other has to move.
-- **The frame loop advances in fixed slices, and that is load-bearing.** Once a
-  pass was scaled by the frame's delta, which rest state an arrangement fell
-  into depended on the frame rate, and so did the score taken from it — the same
-  drop compacted to 3.9785 at 10fps and 3.9746 at 240fps. An unconfined
-  arrangement has a whole family of rest states and the path picks one, so this
-  cannot be fixed by choosing a better cap; it is fixed by making every frame
-  rate run the same sequence of slices.
+- **A frame is a tick, not a duration.** The loop assumes a constant frame rate
+  and advances one step per frame, so no delta reaches the rules at all. This is
+  not laziness about frame pacing, it is the only cheap way to keep a score off
+  the clock: an unconfined arrangement has a whole family of rest states and the
+  path picks one, so once a pass was scaled by a real delta, which rest the
+  arrangement fell into depended on the frame rate and so did the score — the
+  same drop compacted to 3.9785 at 10fps and 3.9746 at 240fps. With no delta
+  there is no path to vary, and what was a frame-rate property becomes plain
+  determinism. The price is that a 120Hz display settles twice as briskly as a
+  60Hz one, which for a game with no timer is a difference in nothing that is
+  scored.
 - **A speed cap must never reach `settle()`.** Convergence is judged on the
   largest step any ball took, which is precisely the quantity a cap shrinks, so
   a cap below the tolerance reports a converged fit on the first pass with the
