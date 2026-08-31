@@ -196,6 +196,14 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
    */
   let falling: { index: number; height: number } | null = null;
   /**
+   * A ball that has arrived with a level change and is waiting out the zoom
+   * before it drops. Held at carry height --- off the plane, exerting nothing
+   * --- until the camera settles, so the drop reads as its own event. Promoted
+   * into `falling` the frame the zoom ends; the same one-ball-off-the-plane
+   * slot as `falling` and a carried ball, never two at once.
+   */
+  let pendingDrop: { index: number } | null = null;
+  /**
    * A level-change zoom in progress: the scale it started from and how many
    * frames it has run. The target is always the current level's fit, recomputed
    * every frame, so a mid-zoom window resize is handled for free.
@@ -282,14 +290,18 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   function advanceLevel(): void {
     const before = session.level;
     session = advance(session);
-    if (session.level !== before) beginZoom();
+    if (session.level !== before) {
+      beginZoom();
+      pendingDrop = { index: session.balls.length - 1 };
+    }
     refreshView();
     draw();
   }
 
-  /** The ball off the plane right now: carried by the pointer, or still falling. */
+  /** The ball off the plane right now: carried, waiting out a zoom, or falling. */
   function raisedBall(): { index: number; height: number } | null {
     if (grab?.ball != null) return { index: grab.ball, height: CARRY_HEIGHT };
+    if (pendingDrop) return { index: pendingDrop.index, height: CARRY_HEIGHT };
     return falling ? { index: falling.index, height: falling.height } : null;
   }
 
@@ -298,7 +310,15 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     // rather than once per pass.
     if (zooming) {
       zooming.tick++;
-      if (zooming.tick >= ZOOM_TICKS) zooming = null;
+      if (zooming.tick >= ZOOM_TICKS) {
+        zooming = null;
+        // The camera has settled: now the ball that arrived with the level
+        // drops, as an event of its own.
+        if (pendingDrop) {
+          falling = { index: pendingDrop.index, height: CARRY_HEIGHT };
+          pendingDrop = null;
+        }
+      }
     }
     refreshView();
     for (let pass = 0; pass < PASSES_PER_STEP; pass++) {
@@ -378,8 +398,12 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     };
     // Only ever one ball is off the plane, so picking one up ends any fall in
     // progress — its own, which is back in the air, or another's, which lands
-    // where it had got to.
-    if (ball !== null) falling = null;
+    // where it had got to — and likewise a ball still waiting out a zoom to
+    // drop, which is simply left where the level change put it.
+    if (ball !== null) {
+      falling = null;
+      pendingDrop = null;
+    }
     draw();
   }
 

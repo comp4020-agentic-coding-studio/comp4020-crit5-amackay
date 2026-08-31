@@ -474,6 +474,37 @@ describe("level select and advancing", () => {
     game.destroy();
   });
 
+  it("holds the arrived ball at carry height through the zoom, then drops it", () => {
+    const game = beatenAt(1);
+    const heightOf = (i: number) =>
+      Number(container.querySelectorAll<HTMLElement>(".ball")[i]!.style.getPropertyValue("--h"));
+
+    document.querySelector<HTMLButtonElement>("button.advance")!.click();
+    expect(game.session.balls).toHaveLength(2);
+    expect(heightOf(1)).toBe(1); // arrived, held
+
+    for (let i = 0; i < 10; i++) game.step(); // still inside the zoom
+    expect(heightOf(1)).toBe(1);
+
+    settleFrames(game); // zoom ends, ball drops, no wall-clock time involved
+    expect(heightOf(1)).toBe(0);
+    const target = fitView(openSide(2), SIZE.width, SIZE.height).scale;
+    expect(game.view.scale).toBeCloseTo(target, 6);
+    game.destroy();
+  });
+
+  it("runs the whole advance --- zoom and drop --- the same way every time", () => {
+    const play = () => {
+      const game = beatenAt(1);
+      document.querySelector<HTMLButtonElement>("button.advance")!.click();
+      settleFrames(game);
+      const balls = game.session.balls.map((b) => ({ ...b }));
+      game.destroy();
+      return balls;
+    };
+    expect(play()).toEqual(play());
+  });
+
   it("runs the zoom the same way every time", () => {
     const play = () => {
       const game = beatenAt(1);
