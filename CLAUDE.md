@@ -94,6 +94,17 @@ from a previous week, where it silently 404s every asset on the live site.
   `agent-browser` CLI works). The rendered page is the truth; this week, the
   *played* page is.
 - **A value written in a comment is not evidence.** Evaluate the function.
+- **"The same arrangement whatever the frame rate" is not a property this model
+  has.** Walls only push inward, so any arrangement that is not jammed sits in a
+  whole family of rest states and the path picks one. A test comparing positions
+  across two frame rates is asserting something untrue the moment anything in
+  the loop depends on the delta --- and the score follows the arrangement, so
+  this is not cosmetic. Fix it by making every frame rate run the same fixed
+  slices, not by loosening the tolerance.
+- **`agent-browser eval` keeps its context between calls.** A script that
+  declares anything at the top level throws `Identifier has already been
+  declared` on the second run, and a bare `const top`/`const stage` collides
+  with a DOM global on the first. Wrap every eval script in an IIFE.
 - **A green test written from the same misreading as the code is worth
   nothing.** Three real bugs this week were covered by tests that asserted the
   wrong behaviour and passed; each was found by opening the page. When a test

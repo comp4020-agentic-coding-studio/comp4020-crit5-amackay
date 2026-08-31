@@ -53,12 +53,21 @@ Two rules make this seam real rather than decorative:
   arrangement back toward the middle instead of closing around wherever it
   happens to sit — which is also how the game says, without a word, that the
   centre is where it happens.
-- **The boundary is a rim, not four walls.** A raised rim follows the square's
-  outline, corners included, and the terrain falls away a radius either side of
-  it, so a ball rolls off it downhill — inward if inside, outward if outside.
-  There is no hard collision anywhere: the rim is a hill a ball can be pushed
-  over. It is the signed distance to the square, which is what makes the corners
-  fall out instead of being enumerated (see `rimAt`).
+- **The boundary is a wall with a thickness, and a ridge rather than a fence.**
+  `side` is the *interior* clear span — what the published tables mean by the
+  side of the square — and the wall stands outside it, from `side/2` to
+  `side/2 + WALL_WIDTH`. The terrain falls away a radius beyond each of its two
+  faces, so a ball rests touching the face it is against and rolls off downhill
+  either way. There is no hard collision anywhere: the wall is a hill a ball can
+  be pushed over. Two signed distances to two squares do it, which is what makes
+  the corners fall out instead of being enumerated (see `rimAt`) — the inner
+  face answers containment, the wall's centreline answers force. Written that
+  way the inward force is algebraically identical to a zero-thickness wall's, so
+  giving the wall a body moved nothing inside the box.
+- **`WALL_WIDTH` is a rule, not a drawing.** It lives in `types.ts` and
+  `render.ts` publishes it to CSS. The stylesheet holding its own copy is what
+  let every settled ball bury an eighth of a radius in the wall it was resting
+  on, unnoticed by a green suite.
 - **The screen edge is the one hard stop.** A clamp on position, not a force,
   because a ball must never be lost off screen — a guarantee, not a tendency.
   Omitted when the surface has no measured size, which is every jsdom element:
@@ -82,9 +91,9 @@ coherent displacement instead of being shoved sequentially by each neighbour in
 turn — which is the regime a packing game lives in almost all of the time.
 
 - **Contact force is linear in overlap**, along the line of centres for a pair
-  (`2 - distance`, where positive) and across the rim for the boundary (`1 -
-  |distance to the boundary|`, downhill). A nonlinear contact law would buy
-  nothing here.
+  (`reach - distance`, where positive, and `reach` is 2 unless one of them is off
+  the plane) and across the wall for the boundary (`REACH - |distance to the
+  centreline|`, downhill). A nonlinear contact law would buy nothing here.
 - **Displacement is proportional to net force**: `dx = alpha * F`, overdamped,
   no velocity and no momentum carried between iterations. That is `IDEA.md`'s
   "the balls settle, they do not fly" stated as code rather than as a hope.
@@ -92,14 +101,16 @@ turn — which is the regime a packing game lives in almost all of the time.
   pair then resolves exactly in a single iteration, and dividing by the contact
   count keeps a pass non-expansive inside a dense cluster. This is the model's
   one constant and it is derived, not dialled in.
-- **A carried ball is out of the arrangement entirely** (`lifted`) — it exerts
-  no force and receives none, so it passes over its neighbours without
-  disturbing them. Anything less is not `IDEA.md`'s "lifts clear of the others":
-  a ball that stays pinned but keeps pushing ploughs a furrow through the
-  arrangement the player built, which is the opposite of being able to try a
-  position before committing to it. A **released** ball is the mirror image
-  (`pinned`): immovable, and shoving everything aside. M6 replaces both flags
-  with a height.
+- **One ball at a time is off the plane, and its height is the whole story.**
+  Two balls touch at centre distance 2, so one raised to `h` reaches only
+  `sqrt(4 - h²)` across: nothing at carry height, a full diameter on the plane.
+  Carried, descending and settled are that one number at 2, in between, and 0 —
+  and because 0 means an ordinary ball, the end of a descent needs no special
+  case. Only one ball ever has a height, so the arrangement stays coplanar and
+  the packing stays a packing, which is what keeps the published optima the
+  right target. Modelling the rules in 3D would break exactly that: under a
+  squeeze the balls would ride up over each other, and a pile is not a circle
+  packing.
 - **Symmetry survives**, and this is the real reason to accumulate rather than
   resolve in place. Because nothing moves mid-pass, a symmetric arrangement
   settles symmetrically: N = 4 and N = 9 compact square instead of drifting on
@@ -126,14 +137,26 @@ the side (`compact.ts`); levels, carry-over and bests (`session.ts`); and the
 edge — DOM balls, pointer drag, the frame loop (`mount.ts`, `render.ts`).
 `spec/crit-5.test.ts` is green in full.
 
-Three things the milestones left behind, all still true and none obvious from
-the code:
+What the milestones left behind, all still true and none obvious from the code:
 
-- **A ball is one of three things**, not two: carried (out of the arrangement
-  entirely, disturbs nothing it passes over), descending (position in plan
-  fixed, pushed by nothing including the rim, shoving neighbours aside), and
-  settled. Collapsing the first two is what made a drag plough a furrow through
-  the arrangement.
+- **The fall's pacing and the settle's pacing are one pair of constants, not
+  two.** A dropped ball has to shove its neighbour a full diameter, and a shoved
+  ball travels at `MAX_SPEED`, so gravity is set to make the fall take exactly
+  that long: the ball lands as the neighbour arrives. Picked independently, the
+  fall outran the shove and the drop slid 0.37 radii off the spot the player
+  chose. Tune one and the other has to move.
+- **The frame loop advances in fixed slices, and that is load-bearing.** Once a
+  pass was scaled by the frame's delta, which rest state an arrangement fell
+  into depended on the frame rate, and so did the score taken from it — the same
+  drop compacted to 3.9785 at 10fps and 3.9746 at 240fps. An unconfined
+  arrangement has a whole family of rest states and the path picks one, so this
+  cannot be fixed by choosing a better cap; it is fixed by making every frame
+  rate run the same sequence of slices.
+- **A speed cap must never reach `settle()`.** Convergence is judged on the
+  largest step any ball took, which is precisely the quantity a cap shrinks, so
+  a cap below the tolerance reports a converged fit on the first pass with the
+  balls still overlapping. `settle()` strips it rather than trusting callers,
+  because every score comes down that path.
 - **Compacting skips its entry settle when the arrangement already fits.**
   Re-settling a settled arrangement relaxes it by ~1e-13 a time, and enough
   presses would creep it across a precision step, which would make pressing the
@@ -147,49 +170,6 @@ the code:
 
 Each milestone is a commit or a short range, ends with `pnpm check` green, and
 adds the tests named under it.
-
-### M6 — motion: the falling descent, and a speed cap
-
-Settling currently resolves in about four frames and reads as teleporting. The
-fix is not to slow the solver down but to give the motion a reason to take time.
-
-**The descent becomes a fall.** A released ball has a height, and only ever one
-ball does, so the arrangement stays coplanar and the packing stays a packing.
-Two unit spheres touch at centre distance 2, so a ball at height `h` above the
-plane excludes its neighbours out to `sqrt(4 - h*h)` horizontally: nothing at
-`h = 2`, a full diameter at `h = 0`. Lowering `h` over the fall is IDEA.md's
-"lowers it back down, pushing its neighbours aside as it descends" taken
-literally instead of approximated, and it dissolves the carried/descending/
-settled enum into one number — carried is `h = 2`, settled is `h = 0`.
-
-This is the only place a third dimension earns its keep. Modelling the *rules*
-in 3D would break the game: under a squeeze the balls would ride up over each
-other, and a pile is not a circle packing, so the published optima would stop
-being the right target. Corners get no cheaper either — a sphere against a 3D
-box corner needs the same signed distance with one more component.
-
-**And a speed cap** for everything that is not falling: a nudge, a box squeeze.
-Clamp each ball to a maximum speed per second so a big overlap resolves at a
-constant rate and eases out at the end, rather than exponentially with all the
-movement in the first two frames.
-
-*Tests:* horizontal exclusion grows monotonically from 0 to 2 as `h` falls from
-2 to 0; a ball at `h = 2` disturbs nothing; a landed ball is an ordinary member
-of the arrangement; the fall is stepped by a delta and reaches the same resting
-arrangement whatever the deltas were; a capped settle converges to the same
-fixed point as an uncapped one.
-
-*Retire with it:* the `pinned` option and the `descending` flag in `mount.ts`,
-both of which become `h > 0`.
-
-**The test this breaks, on purpose.** `mount.test.ts` asserts the same
-arrangement after N steps whatever the delta was. A speed cap scaled by delta
-makes that false and *should* — the honest property is that the same **resting**
-arrangement is reached given enough time. Change it in its own commit, ahead of
-the feature, saying which line of the spec it still serves.
-
-*Playtest ask.* Does the drop read as a ball landing? Does the shove propagate
-visibly — A pushes B pushes C — or still arrive all at once?
 
 ### M7 — the box handle
 
@@ -262,3 +242,9 @@ nothing here can judge it.
   handle turns out to feel like).
 - The star tolerance widths, fixed as numbers in `score.ts` but only a
   playtest around M9 can judge as difficulty.
+- `MAX_SPEED`, and with it the fall, which is derived from it. Half a second for
+  a full diameter is a guess at "slow enough to watch, fast enough not to
+  wait", and only hands on the game can settle it. The pusher is the risk: a
+  fingertip crosses the box far faster than a capped ball can move, so a fast
+  drag may leave balls behind and have them pop out after the pointer has
+  passed through.
