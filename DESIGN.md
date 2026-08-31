@@ -143,9 +143,12 @@ turn — which is the regime a packing game lives in almost all of the time.
 
 The seam above, and with it: the packing table and star thresholds
 (`optima.ts`, `score.ts`); settling (`settle.ts`); compacting by bisection on
-the side (`compact.ts`); levels, carry-over and bests (`session.ts`); and the
-edge — DOM balls, pointer drag, the frame loop (`mount.ts`, `render.ts`).
-`spec/crit-5.test.ts` is green in full.
+the side (`compact.ts`); levels, carry-over and bests (`session.ts`); the
+level-select histogram geometry (`histogram.ts`); and the edge — DOM balls,
+pointer drag, the frame loop, the level-change zoom and drop (`mount.ts`,
+`render.ts`), and the furniture around the stage — histogram, next-level
+button, finish slot (`chrome.ts`). `spec/crit-5.test.ts` and
+`spec/mounted-prose.test.ts` are green in full.
 
 What the milestones left behind, all still true and none obvious from the code:
 
@@ -239,24 +242,48 @@ What the milestones left behind, all still true and none obvious from the code:
   of the handle's own square nearer its outer corner, so a glyph sized to the
   full square has its far head sitting in the clipped-off half — this one is
   scaled to the near quadrant instead, so both tips clear the clip.
+- **The histogram carries no text, by contract.** The visible-prose budget is
+  twenty words; a numeral on each of twenty rows spends it outright. So a row is
+  a bar and three notches, its level is an `aria-label` (an attribute, off the
+  budget), and the finish fragment is the one place the chrome writes visible
+  text. `spec/mounted-prose.test.ts` walks the mounted game to level 20 and past
+  the ending and applies the crit-5 text checks to what actually renders --- the
+  static `dist/index.html` budget is a floor, this is the check with teeth.
+- **The opening screen is server-rendered.** `index.astro` runs `histogramRows`
+  at build time and emits the `h1`, a one-row `nav`, a hidden `.advance` and an
+  empty `#finish`, so `dist/index.html` holds what a first-time player sees.
+  Everything with a pixel position is written on hydrate; `createChrome` adopts
+  the server-rendered elements by selector, and `renderLevels` sets each row's
+  click fresh every frame so the adopted row is wired too.
+- **The zoom is a tick count, not a duration.** A level change eases
+  `view.scale` to the new fit over `ZOOM_TICKS` frames with a pure `smoothstep`
+  --- one step per frame, like the fall and the close --- so the hand-off from
+  the zoom to the new ball's drop lands on a tick boundary rather than at a
+  wall-clock time. `refreshView` is the one place the view is recomputed and it
+  is zoom-aware; only the scale is eased, the origin is always the live surface
+  centre. `.box` lost its CSS transition to this: a level change was the last
+  motion it smoothed, and that motion is now a per-frame write.
+- **`pendingDrop`, `falling` and a carried ball are one slot.** The ball that
+  arrives with a level change waits out the zoom at carry height --- off the
+  plane, exerting nothing --- then `step()` promotes it into `falling` the frame
+  the camera settles. Only ever one ball off the plane; grabbing any ball
+  cancels a pending drop the way it cancels a fall.
+- **The next-level button shows only where it acts.** `session.level ===
+  session.reached && level < MAX_LEVEL && levelComplete` --- a beaten frontier,
+  never a revisit, never the last level. It is the game's second uncaptioned
+  control; it appears the instant beating par makes it mean something, and its
+  chevron points the way the drop goes. Whether that teaches it is a playtest
+  question.
+- **Persistence is wired through an `onCommit` hook.** `mount.ts` calls it on a
+  recorded score, a level change, and once an arrangement has come to rest with
+  a changed serialisation --- not per frame. `main.ts` owns the `localStorage`
+  key and wraps every read and write in `try/catch`; `deserialise` already turns
+  anything unreadable into a fresh session.
 
 ## What is left
 
 Each milestone is a commit or a short range, ends with `pnpm check` green, and
 adds the tests named under it.
-
-### M8 — level select, zoom, drop
-
-The level-select histogram doubles as the `nav` landmark the invariants require,
-which is why the shell has a `nav` with nothing in it yet. Level change
-zooms the view, then drops the new ball as a separate beat.
-
-*Tests:* the nav contains one row per reached level and none beyond; a row's bar
-length is derived from the recorded best; the drop is a state transition that
-can be stepped to completion without wall-clock time.
-
-**Playtest ask.** Does 1 -> 2 read as "one more ball arrived", or as a reset?
-Does the N = 5 tear-down land as a difficulty spike or as a puzzle?
 
 ### M9 — ship
 
@@ -268,36 +295,19 @@ playtest start in `main.ts`.
 1920x1080: core sequence to completion in about five minutes. The phone is where
 a size-dependent design breaks and where drag targets are decided.
 
-## Two collisions to expect
+Revert the three-ball playtest start in `main.ts` — once M8 landed, a stored
+session or the level-select and next-level button make level 1 reachable on its
+own, so the temporary start is only masking the real first-run experience.
 
-**The word budget is not yet measuring the right text.** Headings are now
-excluded from the count (`c41359f`); the instruction regex and the sentence
-check still read them, because "How to play" is telling wherever it is set.
-
-That buys the title back, not the level select — twenty histogram rows are
-twenty words on their own. And underneath that sits the larger problem:
-`spec/crit-5.test.ts` reads `dist/index.html` statically, so a game that builds
-its DOM at runtime would pass the prose tests because the built page is empty,
-not because it is quiet. Both halves resolve at M8:
-
-- **Server-render the opening state** in `index.astro` — level 1, one ball, a
-  nav with one row — and hydrate from there. The built HTML then really does
-  contain what a first-time player sees, which is the state the no-prose spec
-  line is about, and the static budget starts measuring something again.
-- **Add a mounted-DOM prose sensor** that builds the game in jsdom, walks it to
-  level 20 and to the ending, and applies the same regex to the text that
-  actually appears on screen. That is where the level select gets read, and it
-  makes the static budget a floor rather than the whole check.
-
-Raising the number itself is the last resort, not the first move: the count is
-the crude half of that test and the regex is the half that encodes the spec.
+`FINISH_TEXT` in `mount.ts` is a placeholder ("ten levels, tighter"); the
+wording is the repo owner's and goes through the public-prose pass.
 
 **Keyboard input is not on this path.** `IDEA.md` leaves it open and untested.
 It is accessibility, not the intended mode, and the marked phone viewport has no
-keyboard at all, so it lands after M8 or not this week — and by hand, since
+keyboard at all, so it lands after M9 or not this week — and by hand, since
 nothing here can judge it.
 
-## Still open after this plan
+## Still open
 
 - The star tolerance widths, fixed as numbers in `score.ts` but only a
   playtest around M9 can judge as difficulty.

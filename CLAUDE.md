@@ -159,6 +159,15 @@ won't tell you:
   spec asks for the finished game to be played at both. The phone one is where
   a size-dependent design breaks — and a game with keyboard-only input has no
   first move there at all.
+- **Write CSS breakpoints in `rem`, never a 3-digit `px`.** `spec/crit-5.test.ts`
+  greps the bundled CSS for `(width|min-width): NNNpx` over 390 and calls it a
+  fixed width wider than a phone — and `@media (max-width: 560px)` matches that
+  regex. `35rem` does not.
+- **The visible-prose budget is 20 words, and the histogram spends none.** Any
+  text node in a level-select row is one word times up to twenty rows.
+  `spec/mounted-prose.test.ts` walks the mounted game to level 20 and the ending
+  and holds the instruction/sentence/word checks against what actually renders;
+  the static `dist/index.html` budget is only a floor.
 
 Nothing here measures accessibility, performance, or whether the game is any
 good.
