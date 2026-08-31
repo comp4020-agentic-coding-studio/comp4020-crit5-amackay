@@ -6,7 +6,10 @@ import { BALL_RADIUS, CONTACT_DISTANCE, WALL_WIDTH, type Ball, type Side } from 
 // coherent displacement rather than being shoved sequentially by each
 // neighbour, and a symmetric arrangement stays symmetric.
 
-/** Contact distance for the fingertip: it has to actually be on a ball. */
+/**
+ * How close the fingertip may come to a ball's centre. A radius, so the pointer
+ * is never inside a ball it is pushing.
+ */
 const PUSHER_REACH = BALL_RADIUS;
 
 /** Below this, two centres count as coincident and need a jitter direction. */
@@ -44,7 +47,16 @@ export interface SettleOptions {
    * height of 0 here means the same thing as no raised ball at all.
    */
   raised?: { index: number; height: number } | null;
-  /** Dragging on empty background bumps balls aside. */
+  /**
+   * Dragging on empty background bumps balls aside.
+   *
+   * A hard constraint rather than a force, for the same reason the screen edge
+   * is: a fingertip crosses the box far faster than a capped ball can travel,
+   * so as a force it would be outrun --- balls would sink into the pointer and
+   * pop out behind it, and fine adjustment would feel like pushing through
+   * treacle. As a constraint the ball is simply never inside the pointer, and
+   * what it displaces resolves at the capped rate like everything else.
+   */
   pusher?: Pusher | null;
   /**
    * Half-extents of the visible area, in world units. Unlike a wall, this is a
@@ -271,26 +283,6 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
     wallForce += magnitude;
   }
 
-  // The fingertip: a phantom ball that pushes and is never pushed back.
-  const pusher = opts.pusher;
-  if (pusher) {
-    for (let i = 0; i < n; i++) {
-      if (i === raised) continue;
-      const dx = balls[i]!.x - pusher.x;
-      const dy = balls[i]!.y - pusher.y;
-      const distance = Math.hypot(dx, dy);
-      // The pointer is a point, not a ball: it has to actually be on a ball to
-      // shove it, rather than nudging things from a radius away.
-      if (distance >= PUSHER_REACH) continue;
-      const overlap = PUSHER_REACH - distance;
-      const direction =
-        distance < DEGENERATE ? jitterDirection(i, i) : { x: dx / distance, y: dy / distance };
-      fx[i]! += direction.x * overlap;
-      fy[i]! += direction.y * overlap;
-      contacts[i]!++;
-    }
-  }
-
   return { fx, fy, contacts, residual, wallForce };
 }
 
@@ -311,6 +303,7 @@ export function settleOnce(balls: readonly Ball[], opts: SettleOptions): PassRes
   const { fx, fy, contacts, residual, wallForce } = accumulate(balls, opts);
   const raised = raisedIndex(opts);
   const maxStep = opts.maxStep ?? null;
+  const pusher = opts.pusher ?? null;
   const moved: Ball[] = [];
 
   let maxDisplacement = 0;
@@ -339,6 +332,20 @@ export function settleOnce(balls: readonly Ball[], opts: SettleOptions): PassRes
       }
       x += dx;
       y += dy;
+    }
+    // The fingertip, before the screen edge: a ball may be shoved into the edge
+    // and stopped there, but never out through it, so the edge has the last
+    // word of the two.
+    if (pusher && i !== raised) {
+      const dx = x - pusher.x;
+      const dy = y - pusher.y;
+      const gap = Math.hypot(dx, dy);
+      if (gap < PUSHER_REACH) {
+        const direction =
+          gap < DEGENERATE ? jitterDirection(i, i) : { x: dx / gap, y: dy / gap };
+        x = pusher.x + direction.x * PUSHER_REACH;
+        y = pusher.y + direction.y * PUSHER_REACH;
+      }
     }
     if (bounds) {
       x = Math.min(bounds.x, Math.max(-bounds.x, x));

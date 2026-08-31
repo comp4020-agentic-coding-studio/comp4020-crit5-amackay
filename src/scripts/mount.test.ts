@@ -236,6 +236,32 @@ describe("dragging the background", () => {
     expect(game.session.balls[0]!.x).toBeGreaterThan(2);
     game.destroy();
   });
+
+  it("never lets the pointer end up inside a ball, however fast it moves", () => {
+    // The reason the fingertip is a constraint and not a force: a pointer
+    // crosses the box far faster than a capped ball can travel, so as a force
+    // it is simply outrun — the ball sinks into it and pops out behind. Swept
+    // across a row in four big jumps, which is what a flick of the wrist looks
+    // like at 60fps.
+    const game = mount([
+      { x: -2, y: 0 },
+      { x: 0, y: 0 },
+      { x: 2, y: 0 },
+    ]);
+    for (const x of [-6, -2, 1, 4, 8]) {
+      const p = at(game, { x, y: 0 });
+      if (x === -6) game.pointerDown(p.x, p.y);
+      else game.pointerMove(p.x, p.y);
+      game.step();
+      for (let i = 0; i < game.session.balls.length; i++) {
+        const ball = game.session.balls[i]!;
+        expect(Math.hypot(ball.x - x, ball.y), `ball ${i} at pointer x = ${x}`)
+          .toBeGreaterThanOrEqual(1 - 1e-9);
+      }
+    }
+    game.pointerUp();
+    game.destroy();
+  });
 });
 
 describe("real pointer events", () => {

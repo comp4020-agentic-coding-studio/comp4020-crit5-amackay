@@ -72,10 +72,16 @@ Two rules make this seam real rather than decorative:
   `render.ts` publishes it to CSS. The stylesheet holding its own copy is what
   let every settled ball bury an eighth of a radius in the wall it was resting
   on, unnoticed by a green suite.
-- **The screen edge is the one hard stop.** A clamp on position, not a force,
-  because a ball must never be lost off screen — a guarantee, not a tendency.
-  Omitted when the surface has no measured size, which is every jsdom element:
-  bounds of zero would collapse the arrangement onto the origin.
+- **The screen edge and the fingertip are the two hard stops.** Both are clamps
+  on position rather than forces, and for the same reason: a force can be
+  outrun. A ball must never be lost off screen — a guarantee, not a tendency —
+  and a pointer crosses the box far faster than a capped ball can travel, so as
+  a force it would let balls sink into the fingertip and pop out behind it,
+  which is what made nudging feel like pushing through treacle. The fingertip
+  is applied first and the edge last, so a ball can be shoved against the edge
+  and stopped there but never through it. The edge clamp is omitted when the
+  surface has no measured size, which is every jsdom element: bounds of zero
+  would collapse the arrangement onto the origin.
 - **Determinism is a contract, not a nicety.** No `Math.random` anywhere in
   `src/game/`. Degeneracy jitter comes from a seeded PRNG keyed on ball index,
   so compacting an unchanged arrangement twice returns the identical number.
@@ -252,7 +258,4 @@ nothing here can judge it.
   playtest around M9 can judge as difficulty.
 - `MAX_SPEED`, and with it the fall, which is derived from it. Half a second for
   a full diameter is a guess at "slow enough to watch, fast enough not to
-  wait", and only hands on the game can settle it. The pusher is the risk: a
-  fingertip crosses the box far faster than a capped ball can move, so a fast
-  drag may leave balls behind and have them pop out after the pointer has
-  passed through.
+  wait", and only hands on the game can settle it.
