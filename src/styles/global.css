@@ -206,6 +206,22 @@ h1 {
   cursor: pointer;
 }
 
+/* On a phone the box fills the width, so the rail moves to the bottom-left
+   corner --- clear of the title above and of the box, which is centred. */
+@media (max-width: 35rem) {
+  #levels {
+    right: auto;
+    left: 0.4rem;
+    top: auto;
+    bottom: 0.5rem;
+    transform: none;
+  }
+
+  .level {
+    width: 62px;
+  }
+}
+
 .level .bar {
   position: absolute;
   left: 0;
