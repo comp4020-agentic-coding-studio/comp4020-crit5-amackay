@@ -2,6 +2,9 @@
 // published circle-packing tables use, so a score compares to them directly.
 export const BALL_RADIUS = 1;
 
+/** Centre distance at which two balls touch. */
+export const CONTACT_DISTANCE = 2 * BALL_RADIUS;
+
 /** A ball's position in world space. The radius is always BALL_RADIUS. */
 export interface Ball {
   x: number;

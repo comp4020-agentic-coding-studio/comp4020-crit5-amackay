@@ -160,6 +160,115 @@ describe("walls", () => {
   });
 });
 
+describe("the speed cap", () => {
+  // The cap is what stops a big overlap resolving almost entirely in its first
+  // two passes, so a shove travels instead of arriving. It must not be able to
+  // change where the arrangement ends up, because that is where scores come
+  // from.
+  const CAP = 0.02;
+
+  /** Passes with a cap on, which settle() deliberately will not do. */
+  function settleCapped(balls: readonly Ball[], side: number, passes: number): Ball[] {
+    let current = balls.map((b) => ({ ...b }));
+    for (let i = 0; i < passes; i++) {
+      current = settleOnce(current, { side, maxStep: CAP }).balls;
+    }
+    return current;
+  }
+
+  it("shortens a step without turning it", () => {
+    // The whole lemma, and the reason nothing downstream can go wrong: per ball
+    // the capped displacement is a positive multiple of the uncapped one. Rest
+    // is where the displacement is zero, and scaling zero is still zero, so the
+    // arrangements the solver may stop at are exactly the same set.
+    const balls: Ball[] = [
+      { x: -0.4, y: 0.1 },
+      { x: 0.4, y: -0.15 },
+      { x: 0, y: 0.5 },
+    ];
+    const free = settleOnce(balls, { side: ROOMY }).balls;
+    const capped = settleOnce(balls, { side: ROOMY, maxStep: CAP }).balls;
+    for (let i = 0; i < balls.length; i++) {
+      const fx = free[i]!.x - balls[i]!.x;
+      const fy = free[i]!.y - balls[i]!.y;
+      const cx = capped[i]!.x - balls[i]!.x;
+      const cy = capped[i]!.y - balls[i]!.y;
+      // Parallel, same way round, and no longer than the cap.
+      expect(fx * cy - fy * cx, `ball ${i} turned`).toBeCloseTo(0, 12);
+      expect(fx * cx + fy * cy, `ball ${i} reversed`).toBeGreaterThan(0);
+      expect(Math.hypot(cx, cy), `ball ${i} overshot`).toBeLessThanOrEqual(CAP + 1e-12);
+      expect(Math.hypot(cx, cy)).toBeLessThanOrEqual(Math.hypot(fx, fy) + 1e-12);
+    }
+  });
+
+  it("holds every ball to the cap while there is still force to resolve", () => {
+    const balls: Ball[] = [
+      { x: -0.4, y: 0 },
+      { x: 0.4, y: 0 },
+    ];
+    // Uncapped this pair resolves exactly in one pass, which is what ALPHA is
+    // pinned to; capped it may not move further than the cap.
+    const pass = settleOnce(balls, { side: ROOMY, maxStep: CAP });
+    for (let i = 0; i < balls.length; i++) {
+      const moved = Math.hypot(pass.balls[i]!.x - balls[i]!.x, pass.balls[i]!.y - balls[i]!.y);
+      expect(moved, `ball ${i}`).toBeCloseTo(CAP, 12);
+    }
+  });
+
+  it("comes to rest somewhere the uncapped solver would also rest", () => {
+    // It can and does change *which* rest is reached — a loose cluster has a
+    // whole family of them and the path picks one — so what is worth asserting
+    // is that wherever it stops, the uncapped solver is finished there too.
+    // That is what makes compacting from it safe.
+    const balls: Ball[] = [
+      { x: -0.4, y: 0.1 },
+      { x: 0.4, y: -0.1 },
+      { x: 0, y: 0.5 },
+      { x: 0.2, y: -0.6 },
+    ];
+    const rested = settleCapped(balls, ROOMY, 2000);
+    const check = settleOnce(rested, { side: ROOMY });
+    expect(check.maxDisplacement).toBeLessThan(1e-9);
+    expect(check.residual).toBeLessThan(1e-9);
+  });
+
+  it("keeps a symmetric arrangement symmetric", () => {
+    // The cap keys on the size of a displacement, and two balls related by a
+    // symmetry of the arrangement have displacements of the same size — so the
+    // same factor applies to both and the symmetry survives. Without that, the
+    // grid levels would drift off square.
+    const balls: Ball[] = [
+      { x: -0.5, y: -0.5 },
+      { x: 0.5, y: -0.5 },
+      { x: -0.5, y: 0.5 },
+      { x: 0.5, y: 0.5 },
+    ];
+    const [a, b, c, d] = settleCapped(balls, ROOMY, 2000) as [Ball, Ball, Ball, Ball];
+    expect(a.x).toBeCloseTo(-b.x, 12);
+    expect(a.y).toBeCloseTo(b.y, 12);
+    expect(a.x).toBeCloseTo(c.x, 12);
+    expect(a.y).toBeCloseTo(-c.y, 12);
+    expect(a.x).toBeCloseTo(-d.x, 12);
+    expect(a.y).toBeCloseTo(-d.y, 12);
+  });
+
+  it("is refused by a settle run to convergence", () => {
+    // Convergence is judged on the largest step any ball took, and a cap is
+    // shortening exactly that — so a cap under the tolerance would report a
+    // converged fit on the first pass with the balls still overlapping, and
+    // every score comes down this path. settle() strips it; this is the guard
+    // on that staying true.
+    const balls: Ball[] = [
+      { x: -0.9, y: 0 },
+      { x: 0.9, y: 0 },
+    ];
+    const result = settle(balls, { side: ROOMY, maxStep: 1e-12, tolerance: 1e-9 });
+    expect(result.converged).toBe(true);
+    expect(result.residual).toBeLessThan(1e-9);
+    expect(distance(result.balls[0]!, result.balls[1]!)).toBeCloseTo(2, 6);
+  });
+});
+
 describe("corners", () => {
   // Box of side 10. The wall's crest runs through (5.11, 5.11) and its friends,
   // half a wall outside the inner face at (5, 5) --- and it is the crest a ball

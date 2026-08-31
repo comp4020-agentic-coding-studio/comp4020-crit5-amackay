@@ -1,12 +1,10 @@
 import { exclusionAt } from "./descent";
-import { BALL_RADIUS, WALL_WIDTH, type Ball, type Side } from "./types";
+import { BALL_RADIUS, CONTACT_DISTANCE, WALL_WIDTH, type Ball, type Side } from "./types";
 
 // Quasi-static settling. Per pass: compute every force, sum per ball, then move
 // every ball. Nothing moves mid-pass, so a ball with several contacts gets one
 // coherent displacement rather than being shoved sequentially by each
 // neighbour, and a symmetric arrangement stays symmetric.
-
-const CONTACT_DISTANCE = 2 * BALL_RADIUS;
 
 /**
  * How far a ball comes to rest from the wall's centreline: its own radius, plus
@@ -66,6 +64,24 @@ export interface SettleOptions {
    * test of the rules on their own.
    */
   bounds?: { x: number; y: number } | null;
+  /**
+   * The furthest any one ball may move in a single pass, in radii.
+   *
+   * Overdamped settling resolves a large overlap exponentially, with nearly all
+   * the movement in the first two passes, so a shove arrives all at once
+   * instead of propagating from the ball that caused it. A cap makes it travel
+   * at a constant rate and ease out at the end.
+   *
+   * Capping only shortens a step; it never turns one. The fixed points are
+   * exactly where the net force is zero either way, so a capped settle reaches
+   * the same arrangement as an uncapped one, and symmetry survives too: the cap
+   * keys on the displacement's magnitude, which two balls related by a symmetry
+   * of the arrangement share.
+   *
+   * The edge sets it from the frame's delta; nothing that produces a score
+   * does, so no score is capped and none moves.
+   */
+  maxStep?: number | null;
   tolerance?: number;
   maxIterations?: number;
 }
@@ -207,7 +223,11 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
       fy[j]! += uy * overlap;
       contacts[i]!++;
       contacts[j]!++;
-      if (overlap > residual) residual = overlap;
+      // A ball in the air is not the box's to contain, so it is left out of the
+      // residual entirely — the same rule the wall loop below follows. Counted
+      // here it would be measured against its own shrunken reach and report an
+      // overlap smaller than the one two balls in the plane would have.
+      if (i !== raised && j !== raised && overlap > residual) residual = overlap;
     }
   }
 
@@ -292,6 +312,7 @@ export interface PassResult extends Measurement {
 export function settleOnce(balls: readonly Ball[], opts: SettleOptions): PassResult {
   const { fx, fy, contacts, residual, wallForce } = accumulate(balls, opts);
   const raised = raisedIndex(opts);
+  const maxStep = opts.maxStep ?? null;
   const moved: Ball[] = [];
 
   let maxDisplacement = 0;
@@ -309,8 +330,17 @@ export function settleOnce(balls: readonly Ball[], opts: SettleOptions): PassRes
       // Dividing by the contact count keeps a pass non-expansive inside a dense
       // cluster while leaving the isolated pair exact.
       const alpha = ALPHA / Math.max(1, contacts[i]!);
-      x += alpha * fx[i]!;
-      y += alpha * fy[i]!;
+      let dx = alpha * fx[i]!;
+      let dy = alpha * fy[i]!;
+      if (maxStep !== null && maxStep >= 0) {
+        const step = Math.hypot(dx, dy);
+        if (step > maxStep) {
+          dx = (dx / step) * maxStep;
+          dy = (dy / step) * maxStep;
+        }
+      }
+      x += dx;
+      y += dy;
     }
     if (bounds) {
       x = Math.min(bounds.x, Math.max(-bounds.x, x));
@@ -330,13 +360,21 @@ export function settleOnce(balls: readonly Ball[], opts: SettleOptions): PassRes
 export function settle(balls: readonly Ball[], opts: SettleOptions): SettleResult {
   const tolerance = opts.tolerance ?? DEFAULT_TOLERANCE;
   const cap = opts.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+  // Running to convergence is not a thing a speed cap has any business in, and
+  // letting one through here would be worse than pointless: convergence is
+  // judged on the largest step any ball took, which the cap is shortening, so a
+  // cap below the tolerance would report success on the first pass with the
+  // arrangement still overlapping — and compact() would take that as a fit.
+  // Stripped rather than merely documented, because every score comes down this
+  // path and a convention is one absent-minded argument away from being broken.
+  const uncapped: SettleOptions = { ...opts, maxStep: null };
 
   let current: Ball[] = balls.map((ball) => ({ x: ball.x, y: ball.y }));
   let iterations = 0;
   let converged = false;
 
   while (iterations < cap) {
-    const pass = settleOnce(current, opts);
+    const pass = settleOnce(current, uncapped);
     current = pass.balls;
     iterations++;
     if (pass.maxDisplacement < tolerance) {
@@ -346,6 +384,6 @@ export function settle(balls: readonly Ball[], opts: SettleOptions): SettleResul
   }
 
   // Measured after the last move, so it describes what the caller is handed.
-  const { residual, wallForce } = measure(current, opts);
+  const { residual, wallForce } = measure(current, uncapped);
   return { balls: current, iterations, converged, residual, wallForce };
 }

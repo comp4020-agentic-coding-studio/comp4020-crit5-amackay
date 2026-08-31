@@ -1,4 +1,4 @@
-import { CARRY_HEIGHT, release, stepDescent, type Descent } from "../game/descent";
+import { CARRY_HEIGHT, MAX_SPEED, release, stepDescent, type Descent } from "../game/descent";
 import { settleOnce } from "../game/settle";
 import { newSession, type Session } from "../game/session";
 import { ballAt, fitView, screenToWorld, viewBounds, type ViewTransform } from "../game/view";
@@ -9,12 +9,32 @@ import { createSurface, render, type Surface } from "./render";
 // call into src/game; nothing in there knows this file exists.
 
 /**
- * Settling passes run per frame. Deliberately a count rather than a function of
+ * The slice of time the simulation advances in. A frame hands over however long
+ * it happened to take, and that is spent in whole slices of this size, with the
+ * remainder carried to the next frame.
+ *
+ * A fixed slice rather than the frame's own delta, because the speed cap made
+ * the delta matter: an arrangement relaxes into whichever rest state its path
+ * reaches, and once the path depended on the frame rate, so did the score taken
+ * from it. Measured before this landed: the same drop compacted to 3.9785 at
+ * 10fps and 3.9746 at 240fps. Small, and still a player's hardware showing up
+ * in their score.
+ */
+const STEP_SECONDS = 1 / 120;
+
+/**
+ * The most simulated time one frame may make up, so a tab that was backgrounded
+ * for a minute resumes rather than grinding through a minute of settling.
+ */
+const MAX_CATCHUP = 0.25;
+
+/**
+ * Settling passes run per slice. Deliberately a count rather than a function of
  * the elapsed time: scores come from compact(), which runs to convergence in a
  * single call, so no score anywhere depends on the frame rate. This number only
- * decides how quickly a settle is seen to happen.
+ * decides how finely a slice is resolved.
  */
-const PASSES_PER_FRAME = 6;
+const PASSES_PER_STEP = 6;
 
 export interface Game {
   /** Advance by a frame. The caller owns requestAnimationFrame, not this. */
@@ -77,24 +97,38 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     render(surface, session.balls, session.side, view, grab?.ball ?? null);
   }
 
+  /** Time handed over by frames but not yet simulated, in seconds. */
+  let pending = 0;
+
   function step(deltaSeconds: number): void {
     refreshView();
-    // The fall is advanced once per settling pass, not once per frame. Dropping
-    // the ball a whole frame's worth and only then letting the arrangement
-    // react leaves whatever overlap that jump created to be shared out the
-    // instant the ball lands — so how far the drop ends up from where the
-    // player put it would depend on the frame rate, and badly on a frame rate
-    // that lurches. Interleaved, the fall stays quasi-static like everything
-    // else here.
-    const descentStep = deltaSeconds / PASSES_PER_FRAME;
+    pending = Math.min(pending + Math.max(0, deltaSeconds), MAX_CATCHUP);
+    while (pending >= STEP_SECONDS) {
+      pending -= STEP_SECONDS;
+      advance(STEP_SECONDS);
+    }
+    draw();
+  }
 
-    for (let pass = 0; pass < PASSES_PER_FRAME; pass++) {
+  function advance(dt: number): void {
+    // The fall is advanced once per settling pass, not once per slice. Dropping
+    // the ball a whole slice's worth and only then letting the arrangement
+    // react leaves whatever overlap that jump created to be shared out the
+    // instant the ball lands, which pushes the drop off the spot the player
+    // chose. Interleaved, the fall stays quasi-static like everything else.
+    const descentStep = dt / PASSES_PER_STEP;
+    // Only the frame loop caps: compacting runs the solver uncapped, so no
+    // score is touched by this.
+    const maxStep = (MAX_SPEED * dt) / PASSES_PER_STEP;
+
+    for (let pass = 0; pass < PASSES_PER_STEP; pass++) {
       if (falling) {
         const next = stepDescent(falling, descentStep);
         falling = next.height > 0 ? { index: falling.index, ...next } : null;
       }
       const result = settleOnce(session.balls, {
         side: session.side,
+        maxStep,
         raised:
           grab?.ball != null
             ? { index: grab.ball, height: CARRY_HEIGHT }
@@ -108,7 +142,6 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
       // A still arrangement is only finished if nothing is still coming down.
       if (result.maxDisplacement === 0 && !falling) break;
     }
-    draw();
   }
 
   function pointerDown(x: number, y: number): void {

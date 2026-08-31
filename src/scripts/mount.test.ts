@@ -149,6 +149,34 @@ describe("dragging a ball", () => {
     game.destroy();
   });
 
+  it("lands a falling ball the moment another is picked up", () => {
+    // Only ever one ball is off the plane, so a grab has to resolve a fall that
+    // is still in progress. It lands where it had got to rather than staying
+    // airborne with nothing tracking its height.
+    const game = mount([
+      { x: -3, y: 0 },
+      { x: 3, y: 0 },
+      { x: 9, y: 0 },
+    ]);
+    const from = at(game, { x: -3, y: 0 });
+    const onto = at(game, { x: 3, y: 0 });
+    game.pointerDown(from.x, from.y);
+    game.pointerMove(onto.x, onto.y);
+    game.pointerUp();
+    game.step(1 / 60); // mid-fall, nowhere near landed
+
+    game.pointerDown(at(game, { x: 9, y: 0 }).x, at(game, { x: 9, y: 0 }).y);
+    game.pointerMove(at(game, { x: 9, y: 4 }).x, at(game, { x: 9, y: 4 }).y);
+    game.pointerUp();
+    settleFrames(game);
+
+    // The interrupted ball is an ordinary member again: it has been let go of
+    // by the fall, so its neighbour has finished pushing it clear.
+    const [a, b] = game.session.balls as [Ball, Ball];
+    expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(2 - 1e-3);
+    game.destroy();
+  });
+
   it("carries a ball by the point it was grabbed by", () => {
     // Grabbing the edge of a ball and snapping its centre to the pointer makes
     // every pick-up start with a jump.
@@ -271,15 +299,18 @@ describe("the frame loop", () => {
     };
 
     // Same bar as the drop point itself: a hundredth of a radius is under a
-    // pixel at the zoom this is drawn at. The three schedules currently agree
-    // to about 5e-4, so this is a bound with room in it rather than a fitted
-    // number.
+    // pixel at the zoom this is drawn at.
     const AGREEMENT = 0.01;
-    const steady = drop(Array.from({ length: 180 }, () => 1 / 60));
-    const fine = drop(Array.from({ length: 720 }, () => 1 / 240));
+    // Six seconds each, which is well past rest — the paths through a fall
+    // differ with the delta and only the arrangement they arrive at does not,
+    // so all three have to be given time to arrive.
+    const steady = drop(Array.from({ length: 360 }, () => 1 / 60));
+    const fine = drop(Array.from({ length: 1440 }, () => 1 / 240));
     // A frame rate that lurches, which is the case a fixed delta never tests.
+    // Six frames at 1/120 and one at 1/15 average to 1/60, so this is the same
+    // six seconds arriving unevenly.
     const ragged = drop(
-      Array.from({ length: 300 }, (_, i) => (i % 7 === 0 ? 1 / 15 : 1 / 120)),
+      Array.from({ length: 360 }, (_, i) => (i % 7 === 6 ? 1 / 15 : 1 / 120)),
     );
 
     for (let i = 0; i < steady.length; i++) {
@@ -297,12 +328,16 @@ describe("the frame loop", () => {
     // means on whatever hardware turns up: no arrangement a player is scored on
     // may depend on the frame rate.
     //
-    // This used to compare the same *step count* at two deltas and assert bit
-    // equality, which held only because step ignored its delta altogether — it
-    // was measuring frame-count independence and calling it frame-rate
-    // independence. The honest property is that the same amount of simulated
-    // time reaches the same rest, and only to the accuracy the solver has: two
-    // different discretisations of the same motion never agree to the last bit.
+    // This used to compare the same *step count* at two deltas, which held only
+    // because step ignored its delta altogether — it was measuring frame-count
+    // independence and calling it frame-rate independence. The property is that
+    // the same amount of simulated *time* reaches the same rest.
+    //
+    // It is exact rather than approximate because the loop spends a frame's
+    // delta in fixed slices: two frame rates covering the same span run the
+    // same sequence of slices, not two discretisations of it. The general
+    // guarantee is one unspent slice of lag, which is why this compares equal
+    // spans rather than equal step counts.
     const start: Ball[] = [
       { x: -0.4, y: 0.1 },
       { x: 0.4, y: -0.1 },
@@ -310,12 +345,12 @@ describe("the frame loop", () => {
     ];
     const slow = mount(start.map((b) => ({ ...b })));
     const fast = mount(start.map((b) => ({ ...b })));
-    for (let i = 0; i < 30; i++) slow.step(1 / 10); // three seconds
-    for (let i = 0; i < 720; i++) fast.step(1 / 240); // the same three seconds
+    for (let i = 0; i < 80; i++) slow.step(1 / 10); // eight seconds
+    for (let i = 0; i < 1920; i++) fast.step(1 / 240); // the same eight seconds
     for (let i = 0; i < slow.session.balls.length; i++) {
       const a = slow.session.balls[i]!;
       const b = fast.session.balls[i]!;
-      expect(Math.hypot(a.x - b.x, a.y - b.y), `ball ${i}`).toBeLessThan(1e-6);
+      expect(Math.hypot(a.x - b.x, a.y - b.y), `ball ${i}`).toBe(0);
     }
     slow.destroy();
     fast.destroy();
