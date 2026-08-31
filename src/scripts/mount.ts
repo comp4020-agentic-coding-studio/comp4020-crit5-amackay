@@ -1,7 +1,7 @@
 import { CARRY_HEIGHT, MAX_SPEED, nearestGap, stepDescent } from "../game/descent";
 import { settleOnce } from "../game/settle";
 import { compact, fitsNow } from "../game/compact";
-import { newSession, record, type Session } from "../game/session";
+import { newSession, openSide, record, type Session } from "../game/session";
 import { ballAt, fitView, screenToWorld, viewBounds, type ViewTransform } from "../game/view";
 import { BALL_RADIUS, type Ball } from "../game/types";
 import { createSurface, render, type Surface } from "./render";
@@ -141,7 +141,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
    * slot seen twice, and never both at once.
    */
   let falling: { index: number; height: number } | null = null;
-  let view: ViewTransform = fitView(session.side, 0, 0);
+  let view: ViewTransform = fitView(openSide(session.level), 0, 0);
 
   function measureSurface(): { width: number; height: number } {
     if (opts.size) return opts.size;
@@ -151,9 +151,16 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
 
   let bounds: { x: number; y: number } | null = null;
 
+  /**
+   * Fit to the level's opening side, not the live one --- so closing the box
+   * changes what fills the frame, never the frame itself. The handle already
+   * grows the side above the opening size on a drag out; the view has to stay
+   * put through that too, which is why this is the level's fixed size and not
+   * a running max.
+   */
   function refreshView(): void {
     const { width, height } = measureSurface();
-    view = fitView(session.side, width, height);
+    view = fitView(openSide(session.level), width, height);
     bounds = viewBounds(view, width, height);
   }
 

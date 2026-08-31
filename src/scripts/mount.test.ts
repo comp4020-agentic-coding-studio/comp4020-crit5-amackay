@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
 import { createGame, type Game } from "./mount";
-import { advance, bestAt, newSession, record } from "../game/session";
+import { advance, bestAt, newSession, openSide, record } from "../game/session";
 import { fitsNow } from "../game/compact";
 import { worldToScreen } from "../game/view";
 import { WALL_WIDTH, type Ball } from "../game/types";
@@ -27,10 +27,15 @@ beforeEach(() => {
  */
 const ROOMY_SIDE = 40;
 
-function mount(balls?: Ball[]): Game {
-  const session = balls
-    ? { ...newSession(balls.length), balls, side: ROOMY_SIDE }
-    : undefined;
+/**
+ * The view is fit to the level's own opening side, not the live one (that is
+ * the point of this milestone's fix), so a fabricated `side` far past its
+ * level's opening size draws a box the view cannot show all of. Fine for
+ * these tests: the balls above sit within a couple of radii of the origin,
+ * nowhere near ROOMY_SIDE's own wall, so nothing here needs it in frame.
+ */
+function mount(balls?: Ball[], side = ROOMY_SIDE): Game {
+  const session = balls ? { ...newSession(balls.length), balls, side } : undefined;
   return createGame(container, { session, size: SIZE });
 }
 
@@ -217,14 +222,19 @@ describe("dragging a ball", () => {
     const [a, b] = game.session.balls as [Ball, Ball];
     expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeCloseTo(2, 3);
 
-    // Now that it has landed, a wall can move it like any other ball.
-    const walled = mount([{ x: 0, y: 0 }]);
+    // Now that it has landed, a wall can move it like any other ball. Its own
+    // level's opening side, not ROOMY_SIDE: the view only frames as far as
+    // openSide(level), so a push has to stay inside that to reach the wall
+    // rather than be caught by the screen-edge clamp first.
+    const wallSide = openSide(1);
+    const walled = mount([{ x: 0, y: 0 }], wallSide);
     const grab = at(walled, { x: 0, y: 0 });
+    const push = at(walled, { x: wallSide / 2 - 0.5, y: 0 });
     walled.pointerDown(grab.x, grab.y);
-    walled.pointerMove(at(walled, { x: 19.5, y: 0 }).x, at(walled, { x: 19.5, y: 0 }).y);
+    walled.pointerMove(push.x, push.y);
     walled.pointerUp();
     settleFrames(walled);
-    expect(walled.session.balls[0]!.x).toBeCloseTo(ROOMY_SIDE / 2 - 1, 3);
+    expect(walled.session.balls[0]!.x).toBeCloseTo(wallSide / 2 - 1, 3);
     game.destroy();
     walled.destroy();
   });
@@ -319,7 +329,7 @@ describe("the handle", () => {
     const before = game.session.balls.map((b) => ({ ...b }));
     const beforeSide = game.session.side;
     const handle = handleAt(game);
-    const looser = at(game, { x: 20, y: -20 });
+    const looser = at(game, { x: 25, y: -25 });
 
     game.handleDown(handle.x, handle.y);
     game.handleMove(looser.x, looser.y);
