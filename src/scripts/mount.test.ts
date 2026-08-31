@@ -243,9 +243,17 @@ describe("the frame loop", () => {
     game.destroy();
   });
 
-  it("reaches the same arrangement whatever the delta was", () => {
-    // Settling is a fixed number of passes a frame, so no score can depend on
-    // the frame rate.
+  it("reaches the same resting arrangement whatever the delta was", () => {
+    // The spec asks the game to be playable at both marked viewports, which
+    // means on whatever hardware turns up: no arrangement a player is scored on
+    // may depend on the frame rate.
+    //
+    // This used to compare the same *step count* at two deltas and assert bit
+    // equality, which held only because step ignored its delta altogether — it
+    // was measuring frame-count independence and calling it frame-rate
+    // independence. The honest property is that the same amount of simulated
+    // time reaches the same rest, and only to the accuracy the solver has: two
+    // different discretisations of the same motion never agree to the last bit.
     const start: Ball[] = [
       { x: -0.4, y: 0.1 },
       { x: 0.4, y: -0.1 },
@@ -253,9 +261,13 @@ describe("the frame loop", () => {
     ];
     const slow = mount(start.map((b) => ({ ...b })));
     const fast = mount(start.map((b) => ({ ...b })));
-    for (let i = 0; i < 50; i++) slow.step(1 / 10);
-    for (let i = 0; i < 50; i++) fast.step(1 / 240);
-    expect(slow.session.balls).toEqual(fast.session.balls);
+    for (let i = 0; i < 30; i++) slow.step(1 / 10); // three seconds
+    for (let i = 0; i < 720; i++) fast.step(1 / 240); // the same three seconds
+    for (let i = 0; i < slow.session.balls.length; i++) {
+      const a = slow.session.balls[i]!;
+      const b = fast.session.balls[i]!;
+      expect(Math.hypot(a.x - b.x, a.y - b.y), `ball ${i}`).toBeLessThan(1e-6);
+    }
     slow.destroy();
     fast.destroy();
   });
