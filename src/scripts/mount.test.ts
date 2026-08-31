@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createGame, type Game } from "./mount";
 import { advance, bestAt, newSession, openSide, record } from "../game/session";
+import { optimum } from "../game/optima";
 import { fitsNow } from "../game/compact";
 import { VIEW_MARGIN, worldToScreen } from "../game/view";
 import { WALL_WIDTH, type Ball } from "../game/types";
@@ -424,6 +425,50 @@ describe("the handle", () => {
     // No ball is actually inside, so nothing is worth recording yet.
     expect(bestAt(game.session, 2)).toBeUndefined();
     game.destroy();
+  });
+});
+
+describe("level select and advancing", () => {
+  /** A session sitting on a beaten frontier level, N balls carried in. */
+  function beatenAt(level: number): Game {
+    let session = newSession(level);
+    session = record(session, optimum(level), session.balls);
+    return createGame(container, { session, size: SIZE });
+  }
+
+  it("shows one nav row per level reached and none beyond", () => {
+    const game = createGame(container, { session: newSession(4), size: SIZE });
+    game.step();
+    expect(document.querySelectorAll("#levels a.level")).toHaveLength(4);
+    game.destroy();
+  });
+
+  it("advances past a beaten frontier level, then re-enters an earlier one from the nav", () => {
+    const game = beatenAt(1);
+    document.querySelector<HTMLButtonElement>("button.advance")!.click();
+    settleFrames(game);
+    expect(game.session.level).toBe(2);
+    expect(game.session.balls).toHaveLength(2);
+
+    document.querySelectorAll<HTMLElement>("#levels a.level")[0]!.click();
+    expect(game.session.level).toBe(1);
+    game.destroy();
+  });
+
+  it("only offers the button at a beaten frontier level", () => {
+    const button = () => document.querySelector<HTMLButtonElement>("button.advance")!;
+    const fresh = createGame(container, { session: newSession(2), size: SIZE });
+    fresh.step();
+    expect(button().hidden).toBe(true); // frontier, not yet beaten
+    fresh.destroy();
+
+    const won = beatenAt(2);
+    won.step();
+    expect(button().hidden).toBe(false);
+    // drop back to level 1 via the nav: no longer the frontier
+    document.querySelectorAll<HTMLElement>("#levels a.level")[0]!.click();
+    expect(button().hidden).toBe(true);
+    won.destroy();
   });
 });
 

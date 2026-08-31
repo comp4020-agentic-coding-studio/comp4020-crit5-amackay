@@ -1,9 +1,19 @@
 import { CARRY_HEIGHT, MAX_SPEED, nearestGap, stepDescent } from "../game/descent";
+import { histogramRows } from "../game/histogram";
 import { settleOnce } from "../game/settle";
 import { compact, fitsNow } from "../game/compact";
-import { newSession, openSide, record, type Session } from "../game/session";
+import {
+  advance,
+  enterLevel,
+  levelComplete,
+  newSession,
+  openSide,
+  record,
+  type Session,
+} from "../game/session";
 import { ballAt, fitView, screenToWorld, viewBounds, VIEW_MARGIN, type ViewTransform } from "../game/view";
-import { BALL_RADIUS, WALL_WIDTH, type Ball, type Side } from "../game/types";
+import { BALL_RADIUS, MAX_LEVEL, WALL_WIDTH, type Ball, type Side } from "../game/types";
+import { createChrome, renderAdvance, renderFinish, renderLevels, type Chrome } from "./chrome";
 import { createSurface, render, type Surface } from "./render";
 
 // The edge: DOM, pointers and the frame loop. Everything the rules need is a
@@ -82,6 +92,14 @@ const MIN_SIDE = 2 * BALL_RADIUS;
  */
 const CLICK_THRESHOLD_PX = 4;
 
+/**
+ * What the screen says once the core sequence is done. A fragment, not a
+ * sentence, and clear of the instruction words the spec forbids --- the whole
+ * of the game's visible-prose budget is twenty words and the histogram spends
+ * none, so this is where they go. Placeholder wording pending the owner's.
+ */
+const FINISH_TEXT = "ten levels, tighter";
+
 export interface Game {
   /**
    * Advance by one frame. The caller owns requestAnimationFrame, not this, and
@@ -146,6 +164,7 @@ export interface GameOptions {
 
 export function createGame(container: HTMLElement, opts: GameOptions = {}): Game {
   const surface: Surface = createSurface(container);
+  const chrome: Chrome = createChrome(container.ownerDocument);
   let session: Session = opts.session ?? newSession();
   let grab: Grab | null = null;
   let resize: Resize | null = null;
@@ -189,6 +208,37 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
 
   function draw(): void {
     render(surface, session.balls, session.side, view, raisedBall());
+    renderLevels(chrome.levels, histogramRows(session), { onSelect: goToLevel });
+    renderAdvance(chrome.advance, canAdvance());
+    renderFinish(chrome.finish, session.finished, FINISH_TEXT);
+  }
+
+  /**
+   * The next-level button shows only where it means something: at the frontier
+   * level, once par has been beaten, and never at the last level. Revisiting an
+   * earlier level via the histogram is not the frontier, so the histogram is
+   * how a player moves around then.
+   */
+  function canAdvance(): boolean {
+    return (
+      session.level === session.reached &&
+      session.level < MAX_LEVEL &&
+      levelComplete(session)
+    );
+  }
+
+  /** Jump to a level already reached, restoring its best arrangement. */
+  function goToLevel(n: number): void {
+    session = enterLevel(session, n);
+    refreshView();
+    draw();
+  }
+
+  /** Move past a beaten frontier level: one more ball, a bigger box. */
+  function advanceLevel(): void {
+    session = advance(session);
+    refreshView();
+    draw();
   }
 
   /** The ball off the plane right now: carried by the pointer, or still falling. */
@@ -369,6 +419,10 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     if (resize) handleUp();
     else pointerUp();
   };
+  const onAdvance = (event: Event) => {
+    event.preventDefault();
+    if (canAdvance()) advanceLevel();
+  };
 
   // Move and release listen on the window, not the surface: a drag that leaves
   // the element, or one the browser never gave us pointer capture for, still
@@ -380,6 +434,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   view_.addEventListener("pointerup", onUp);
   view_.addEventListener("pointercancel", onUp);
   container.addEventListener("dragstart", preventNativeDrag);
+  chrome.advance.addEventListener("click", onAdvance);
 
   refreshView();
   draw();
@@ -405,7 +460,11 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
       view_.removeEventListener("pointerup", onUp);
       view_.removeEventListener("pointercancel", onUp);
       container.removeEventListener("dragstart", preventNativeDrag);
+      chrome.advance.removeEventListener("click", onAdvance);
       container.replaceChildren();
+      chrome.levels.replaceChildren();
+      chrome.advance.hidden = true;
+      chrome.finish.textContent = "";
     },
   };
 }

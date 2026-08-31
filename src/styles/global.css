@@ -184,6 +184,109 @@ h1 {
     inset calc(var(--r) * 0.06) calc(var(--r) * 0.08) calc(var(--r) * 0.12) rgb(255 255 255 / 40%);
 }
 
+/* The level select: a stack of horizontal tracks down the right edge, one per
+   level reached. A track's fill is the player's best size as a fraction of the
+   widest square the game asks for, so a short bar is a tight pack and the stack
+   as a whole is the shape of the packing problem getting harder. The notches
+   are the star thresholds. Nothing here carries a number --- the bar lengths
+   are the reading, and a screen reader gets the level from aria-label. */
+#levels {
+  position: fixed;
+  right: 0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  z-index: 3;
+}
+
+.level {
+  position: relative;
+  display: block;
+  width: 84px;
+  height: 9px;
+  border-radius: 2px;
+  background: rgb(var(--shadow) / 16%);
+  cursor: pointer;
+}
+
+.level .bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: calc(var(--bar, 0) * 100%);
+  border-radius: 2px;
+  background: var(--card-wall);
+}
+
+.level .notch {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: calc(var(--at) * 100%);
+  width: 1px;
+  background: rgb(var(--shadow) / 45%);
+}
+
+.level.is-current {
+  outline: 1.5px solid var(--ink);
+  outline-offset: 1.5px;
+}
+
+/* The one control besides the box handle: it appears in the corner only once
+   the frontier level has been beaten, so its arrival is the game saying "that
+   one's done". A right-pointing chevron drawn as a shape, same as the resize
+   glyph --- no text, because the game names nothing it can show instead. */
+.advance {
+  position: fixed;
+  right: 1.1rem;
+  bottom: 1.1rem;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  background: radial-gradient(circle at 38% 32%, #eee2c8 0%, #d8c79f 45%, #a8925f 100%);
+  box-shadow:
+    calc(var(--r) * 0.06) calc(var(--r) * 0.16) calc(var(--r) * 0.4) rgb(var(--shadow) / 32%),
+    inset calc(var(--r) * 0.06) calc(var(--r) * 0.08) calc(var(--r) * 0.12) rgb(255 255 255 / 40%);
+  z-index: 3;
+}
+
+.advance::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--ink);
+  opacity: 0.6;
+  clip-path: polygon(
+    40% 28%, 50% 28%, 66% 50%, 50% 72%, 40% 72%, 54% 50%
+  );
+}
+
+/* The finish: shown once the core sequence is done and then left up, in the
+   same quiet register as the title. The game's whole visible-word budget is
+   twenty and the histogram spends none of them, so this fragment can. */
+#finish {
+  position: fixed;
+  top: 0.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.5;
+  z-index: 3;
+}
+
+#finish:empty {
+  display: none;
+}
+
 /* The resize glyph itself, drawn on the fitting rather than left to the
    cursor alone --- the cursor only tells a player anything once they are
    already on top of it, and this is the one control in the game. A unicode
