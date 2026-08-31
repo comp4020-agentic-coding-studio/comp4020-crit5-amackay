@@ -1,4 +1,4 @@
-import { CONTACT_DISTANCE } from "./types";
+import { CONTACT_DISTANCE, type Ball } from "./types";
 
 // The one place a third dimension earns its keep. Exactly one ball is ever off
 // the plane, so the arrangement stays coplanar and the packing stays a packing —
@@ -19,32 +19,10 @@ export const CARRY_HEIGHT = CONTACT_DISTANCE;
  * constant and nothing else. At 4 a ball shoved a full diameter takes half a
  * second, which is slow enough to see one ball push another push a third.
  *
- * It lives here rather than at the edge because the fall below is timed against
- * it, and two constants that have to agree should not be in two files.
+ * Everything the player watches move is paced by this and nothing else — the
+ * fall below included, which is why it lives here rather than at the edge.
  */
 export const MAX_SPEED = 4;
-
-/**
- * Downward acceleration, in radii per second squared --- derived rather than
- * dialled in.
- *
- * A ball dropped squarely on a neighbour has to shove it a full diameter, and a
- * shoved ball travels at MAX_SPEED, so that shove takes CARRY_HEIGHT/MAX_SPEED
- * seconds. The fall is timed to take exactly as long: the ball lands at the
- * moment its neighbour arrives. Falling any faster means landing on a ball that
- * has not finished getting out of the way, and what has not been resolved by
- * then is shared out on landing --- which shows up as the drop sliding off the
- * spot the player chose.
- */
-const FALL_SECONDS = CARRY_HEIGHT / MAX_SPEED;
-const GRAVITY = (2 * CARRY_HEIGHT) / (FALL_SECONDS * FALL_SECONDS);
-
-export interface Descent {
-  /** Height above the plane, in radii. Falls to 0, which is landed. */
-  height: number;
-  /** Downward speed, in radii per second. */
-  speed: number;
-}
 
 /**
  * How far a ball at this height holds a coplanar neighbour's centre from its
@@ -65,17 +43,62 @@ export function exclusionAt(height: number): number {
   return Math.sqrt(CONTACT_DISTANCE * CONTACT_DISTANCE - h * h);
 }
 
-/**
- * One step of the fall, by a delta rather than by a clock — rAF does not tick
- * under test, and nothing in the rules may ask what time it is.
- */
-export function stepDescent(descent: Descent, dtSeconds: number): Descent {
-  const dt = Math.max(0, dtSeconds);
-  const speed = descent.speed + GRAVITY * dt;
-  return { height: Math.max(0, descent.height - speed * dt), speed };
+/** The height at which a ball reaches exactly this far across — exclusionAt, back. */
+export function heightFor(exclusion: number): number {
+  const e = Math.min(CONTACT_DISTANCE, Math.max(0, exclusion));
+  return Math.sqrt(CONTACT_DISTANCE * CONTACT_DISTANCE - e * e);
 }
 
-/** A ball dropped from carry height, not yet moving. */
-export function release(): Descent {
-  return { height: CARRY_HEIGHT, speed: 0 };
+/**
+ * How close the nearest other ball is, in plan. Infinite when the ball is alone,
+ * which is level 1 and also any drop into open space.
+ *
+ * Walls are not counted: a ball off the plane is over the box rather than in it,
+ * and the wall gets its turn the moment it lands.
+ */
+export function nearestGap(balls: readonly Ball[], index: number): number {
+  const self = balls[index];
+  if (!self) return Infinity;
+  let nearest = Infinity;
+  for (let i = 0; i < balls.length; i++) {
+    if (i === index) continue;
+    const gap = Math.hypot(balls[i]!.x - self.x, balls[i]!.y - self.y);
+    if (gap < nearest) nearest = gap;
+  }
+  return nearest;
+}
+
+/**
+ * One step of the fall.
+ *
+ * No gravity and no velocity: a released ball comes down as fast as the
+ * arrangement will let it, and nothing else paces it. It presses until its reach
+ * bites `bite` into its nearest neighbour, and that bite is the force shoving
+ * the neighbour clear — so the descent advances exactly as fast as the shove it
+ * causes, which is already capped. Dropped into a gap it is clear of, there is
+ * nothing to wait for and it lands.
+ *
+ * A clock paced this before, and the wait it produced was the wrong shape: half
+ * a second whether or not anything was in the way, which on a drop into open
+ * space is half a second of watching nothing happen.
+ *
+ * Two bounds hold it, and only those. `maxDrop` is the quickest it may come
+ * down, so a landing stays a beat the eye can follow rather than a teleport.
+ * `minDrop` is the slowest, and it is what stops a ball hanging in the air for
+ * ever: a neighbour jammed against a wall or another ball never opens the gap,
+ * so waiting on it never ends. A real ball would stay up there resting on the
+ * pile, but only one ball is ever off the plane here — a ball perched on two
+ * others is not a circle packing — so it has to come down and squeeze in.
+ */
+export function stepDescent(
+  height: number,
+  gap: number,
+  bite: number,
+  minDrop: number,
+  maxDrop: number,
+): number {
+  const allowed = heightFor(gap + bite);
+  const paced = Math.max(allowed, height - maxDrop); // no quicker than the beat
+  const forced = Math.min(paced, height - minDrop); // and no slower than this
+  return Math.max(0, Math.min(height, forced));
 }

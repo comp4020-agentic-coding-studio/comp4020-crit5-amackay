@@ -1,4 +1,4 @@
-import { CARRY_HEIGHT, MAX_SPEED, release, stepDescent, type Descent } from "../game/descent";
+import { CARRY_HEIGHT, MAX_SPEED, nearestGap, stepDescent } from "../game/descent";
 import { settleOnce } from "../game/settle";
 import { newSession, type Session } from "../game/session";
 import { ballAt, fitView, screenToWorld, viewBounds, type ViewTransform } from "../game/view";
@@ -36,6 +36,35 @@ const PASSES_PER_STEP = 6;
  * game feels in motion.
  */
 const MAX_STEP = MAX_SPEED / FRAME_RATE / PASSES_PER_STEP;
+
+/**
+ * How far a descending ball's reach bites into its nearest neighbour. Derived:
+ * `alpha` is 0.5 for a ball with one contact, so an overlap of twice a step is
+ * exactly what it takes to move that neighbour a full step and no more. Bite
+ * less and the descent waits on a neighbour it is barely pushing; bite more and
+ * the cap throws the extra away.
+ */
+const DESCENT_BITE = 2 * MAX_STEP;
+
+/**
+ * The shortest a landing may take, in seconds — so dropping a ball into clear
+ * space reads as a beat rather than a teleport.
+ */
+const BEAT_SECONDS = 0.1;
+const MAX_DROP = CARRY_HEIGHT / (BEAT_SECONDS * FRAME_RATE * PASSES_PER_STEP);
+
+/**
+ * And the longest, expressed as a floor on how far the ball comes down each
+ * pass. Derived: a height falling at MAX_STEP is a ball coming down exactly as
+ * fast as a shoved ball travels sideways, so a landing can never take longer
+ * than the shove it would cause at full stretch — half a second, and only when
+ * something is genuinely in the way the whole distance.
+ *
+ * Without a floor a drop onto a ball jammed against a wall hangs in the air for
+ * ever, because the gap it is waiting on never opens. Measured: the height
+ * stalled at 0.384 and stayed there.
+ */
+const MIN_DROP = MAX_STEP;
 
 export interface Game {
   /**
@@ -80,7 +109,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
    * Only ever one ball is off the plane, so this and a carried ball are the same
    * slot seen twice, and never both at once.
    */
-  let falling: (Descent & { index: number }) | null = null;
+  let falling: { index: number; height: number } | null = null;
   let view: ViewTransform = fitView(session.side, 0, 0);
 
   function measureSurface(): { width: number; height: number } {
@@ -114,8 +143,14 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
       // arrangement reacts to the room the ball needs as it needs it rather
       // than after the fact.
       if (falling) {
-        const next = stepDescent(falling, 1 / FRAME_RATE / PASSES_PER_STEP);
-        falling = next.height > 0 ? { index: falling.index, ...next } : null;
+        const height = stepDescent(
+          falling.height,
+          nearestGap(session.balls, falling.index),
+          DESCENT_BITE,
+          MIN_DROP,
+          MAX_DROP,
+        );
+        falling = height > 0 ? { index: falling.index, height } : null;
       }
       const result = settleOnce(session.balls, {
         side: session.side,
@@ -167,7 +202,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     // Releasing fixes the ball where it is and drops it: from here it pushes its
     // neighbours aside as it falls, reaching further across as it gets lower,
     // and is moved by nothing until it lands.
-    if (grab?.ball != null) falling = { index: grab.ball, ...release() };
+    if (grab?.ball != null) falling = { index: grab.ball, height: CARRY_HEIGHT };
     grab = null;
   }
 

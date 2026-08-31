@@ -149,12 +149,22 @@ edge — DOM balls, pointer drag, the frame loop (`mount.ts`, `render.ts`).
 
 What the milestones left behind, all still true and none obvious from the code:
 
-- **The fall's pacing and the settle's pacing are one pair of constants, not
-  two.** A dropped ball has to shove its neighbour a full diameter, and a shoved
-  ball travels at `MAX_SPEED`, so gravity is set to make the fall take exactly
-  that long: the ball lands as the neighbour arrives. Picked independently, the
-  fall outran the shove and the drop slid 0.37 radii off the spot the player
-  chose. Tune one and the other has to move.
+- **The fall is paced by the arrangement, not by a clock.** There is no gravity
+  and no velocity: a released ball presses down until its reach bites into its
+  nearest neighbour, and that bite is the force shoving the neighbour clear, so
+  the descent advances exactly as fast as the shove it causes — which `MAX_SPEED`
+  already caps. Dropped into a gap it is clear of, there is nothing to wait for.
+  Measured: 0.1s into clear space, 0.25s with a ball half in the way, 0.5s
+  dropped squarely onto one. A clock-paced fall was 0.5s for all three, and the
+  half-second of watching nothing happen was the whole complaint.
+- **Two bounds hold the fall, and both earn their place.** The floor on how
+  quickly it may come down is so a landing reads as a beat rather than a
+  teleport. The floor on how *slowly* is what stops a ball hanging in the air
+  for ever: a neighbour jammed against a wall never opens the gap, so waiting on
+  it never ends — measured, the height stalled at 0.384 and stayed. A real ball
+  would rest on the pile, but only one ball is ever off the plane here, so it
+  has to come down and squeeze in. That floor is `MAX_STEP`, so a landing never
+  takes longer than the shove it would cause at full stretch.
 - **A frame is a tick, not a duration.** The loop assumes a constant frame rate
   and advances one step per frame, so no delta reaches the rules at all. This is
   not laziness about frame pacing, it is the only cheap way to keep a score off
