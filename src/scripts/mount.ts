@@ -94,7 +94,13 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   }
 
   function draw(): void {
-    render(surface, session.balls, session.side, view, grab?.ball ?? null);
+    render(surface, session.balls, session.side, view, raisedBall());
+  }
+
+  /** The ball off the plane right now: carried by the pointer, or still falling. */
+  function raisedBall(): { index: number; height: number } | null {
+    if (grab?.ball != null) return { index: grab.ball, height: CARRY_HEIGHT };
+    return falling ? { index: falling.index, height: falling.height } : null;
   }
 
   /** Time handed over by frames but not yet simulated, in seconds. */
@@ -129,12 +135,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
       const result = settleOnce(session.balls, {
         side: session.side,
         maxStep,
-        raised:
-          grab?.ball != null
-            ? { index: grab.ball, height: CARRY_HEIGHT }
-            : falling
-              ? { index: falling.index, height: falling.height }
-              : null,
+        raised: raisedBall(),
         pusher: grab && grab.ball === null ? grab.world : null,
         bounds,
       });

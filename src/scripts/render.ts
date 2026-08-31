@@ -1,4 +1,5 @@
 import { worldToScreen, type ViewTransform } from "../game/view";
+import { CARRY_HEIGHT } from "../game/descent";
 import { BALL_RADIUS, WALL_WIDTH, type Ball, type Side } from "../game/types";
 
 // Rendering writes and never reads back. Nothing here measures an element, so a
@@ -37,7 +38,8 @@ export function render(
   balls: readonly Ball[],
   side: Side,
   view: ViewTransform,
-  held: number | null,
+  /** The ball that is off the plane, and how high, or null. */
+  raised: { index: number; height: number } | null,
 ): void {
   reconcile(surface, balls.length);
 
@@ -57,9 +59,14 @@ export function render(
     element.style.width = `${diameter}px`;
     element.style.height = `${diameter}px`;
     element.style.transform = `translate(${screen.x - diameter / 2}px, ${screen.y - diameter / 2}px)`;
-    element.classList.toggle("held", i === held);
-    // A carried ball is above the arrangement, so it draws above it too.
-    element.style.zIndex = i === held ? "2" : "1";
+    // How high this ball is, from 0 on the plane to 1 at carry height. The view
+    // is orthographic, so height cannot change a ball's size --- the shadow is
+    // the only thing that can say how far off the plane it is, which is why the
+    // palette went light enough for a shadow to show in the first place.
+    const height = raised && raised.index === i ? raised.height / CARRY_HEIGHT : 0;
+    element.style.setProperty("--h", `${height}`);
+    // A ball off the plane is above the arrangement, so it draws above it too.
+    element.style.zIndex = height > 0 ? "2" : "1";
   }
 
   // The element is the box's interior exactly: its edge is the wall's inner

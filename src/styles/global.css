@@ -103,18 +103,20 @@ h1 {
     #b0b9c2 84%,
     #98a2ac 100%
   );
+  /* --h is how far off the plane this ball is: 0 resting, 1 at carry height,
+     written per frame by render.ts. The view is orthographic, so height cannot
+     change a ball's size --- the shadow does all of it, sliding out from under
+     the ball and going softer and fainter as it rises. That is the whole reason
+     the palette went light enough for a shadow to show. */
+  --h: 0;
+  --lift-x: calc(var(--r) * (0.05 + 0.17 * var(--h)));
+  --lift-y: calc(var(--r) * (0.13 + 0.47 * var(--h)));
+  --lift-blur: calc(var(--r) * (0.26 + 0.59 * var(--h)));
+  --lift-alpha: calc(34% - 6% * var(--h));
   box-shadow:
-    calc(var(--r) * 0.05) calc(var(--r) * 0.13) calc(var(--r) * 0.26) rgb(var(--shadow) / 34%),
+    var(--lift-x) var(--lift-y) var(--lift-blur) rgb(var(--shadow) / var(--lift-alpha)),
     inset calc(var(--r) * -0.11) calc(var(--r) * -0.15) calc(var(--r) * 0.32) rgb(var(--shadow) / 20%);
   will-change: transform;
-}
-
-/* Carried: the same ball, further from the surface. Only the shadow says so,
-   which is the whole reason the palette went light. */
-.ball.held {
-  box-shadow:
-    calc(var(--r) * 0.22) calc(var(--r) * 0.6) calc(var(--r) * 0.85) rgb(var(--shadow) / 28%),
-    inset calc(var(--r) * -0.11) calc(var(--r) * -0.15) calc(var(--r) * 0.32) rgb(var(--shadow) / 16%);
 }
 
 /* The tray. Its background stops at the square, so the fill is exactly the
