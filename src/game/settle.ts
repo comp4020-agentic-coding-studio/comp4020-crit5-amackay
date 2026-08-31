@@ -6,15 +6,6 @@ import { BALL_RADIUS, CONTACT_DISTANCE, WALL_WIDTH, type Ball, type Side } from 
 // coherent displacement rather than being shoved sequentially by each
 // neighbour, and a symmetric arrangement stays symmetric.
 
-/**
- * How far a ball comes to rest from the wall's centreline: its own radius, plus
- * the half-thickness of the wall it is up against. Its surface then touches the
- * wall's face, inside or outside, and the incline runs exactly one radius beyond
- * each face --- which is IDEA.md's "the incline width on either side is 1", now
- * that the wall has faces rather than being a line.
- */
-const REACH = BALL_RADIUS + WALL_WIDTH / 2;
-
 /** Contact distance for the fingertip: it has to actually be on a ball. */
 const PUSHER_REACH = BALL_RADIUS;
 
@@ -231,23 +222,23 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
     }
   }
 
-  // Ball against box. The wall is a slab standing outside the scored square,
-  // from side/2 to side/2 + WALL_WIDTH, and it is a ridge rather than a fence:
-  // the terrain falls away a radius beyond each of its faces, so a ball rolls
-  // off it downhill, inward or outward. That is the hill the player can push a
-  // ball over.
+  // Ball against box. The wall is the square ring between its two faces, from
+  // side/2 out to side/2 + WALL_WIDTH, and a ball rests one radius from it --- so
+  // its surface touches whichever face it is against. The terrain falls away a
+  // radius beyond each face, so the wall is a ridge a ball can be pushed over
+  // rather than a fence it stops at.
   //
-  // Treating the four walls as four independent lines is what this replaces,
-  // and it was wrong in a way only the corners showed: each line ran to
-  // infinity, so a ball far past a corner still felt a wall it was nowhere
-  // near.
+  // The ring's signed distance is the standard subtraction, max(outer, -inner):
+  // outside the box the outer face is nearest, inside the box the inner face
+  // is, and within the wall itself whichever is nearer wins, which puts the
+  // crest down the middle of the wall.
   //
-  // Two questions, two squares. Containment asks whether the ball is inside the
-  // room the box encloses, so it is measured against the inner face. Force asks
-  // which way off the ridge the ball is, so it is measured against the ridge's
-  // own centreline, half a wall further out.
+  // Offsetting one square by half a wall instead would be wrong in exactly one
+  // place, and it is the place that showed: offsetting a square outward rounds
+  // its corners, so a ball settling diagonally outside a corner came to rest
+  // 0.046 radii inside the wall it was supposed to be leaning on.
   const half = opts.side / 2;
-  const mid = half + WALL_WIDTH / 2;
+  const outerHalf = half + WALL_WIDTH;
   for (let i = 0; i < n; i++) {
     // A ball off the plane is over the box, not in it: no wall reaches it, and
     // it is not the box's to contain until it lands.
@@ -257,18 +248,25 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
     // ball whose centre is within a radius of the inner face or beyond it,
     // however the wall happens to be pushing, and compacting must never call
     // that a fit.
-    const overhang = rimAt(balls[i]!, half).distance + BALL_RADIUS;
+    const inner = rimAt(balls[i]!, half);
+    const overhang = inner.distance + BALL_RADIUS;
     if (overhang > residual) residual = overhang;
 
-    const rim = rimAt(balls[i]!, mid);
-    if (Math.abs(rim.distance) >= REACH) continue;
-    const magnitude = REACH - Math.abs(rim.distance);
-    // Downhill is away from the ridge: further out if already out, further in
-    // if in. Balanced exactly on the crest, a ball falls inward — IDEA.md asks
-    // for an exact alignment to be broken, and inward is the kinder of the two.
-    const downhill = rim.distance > DEGENERATE ? 1 : -1;
-    fx[i]! += downhill * rim.nx * magnitude;
-    fy[i]! += downhill * rim.ny * magnitude;
+    const outer = rimAt(balls[i]!, outerHalf);
+    // Ties go to the inner face, so a ball balanced exactly on the crest falls
+    // inward --- IDEA.md asks for an exact alignment to be broken, and inward is
+    // the kinder of the two.
+    const takeOuter = outer.distance + inner.distance > DEGENERATE;
+    const distance = takeOuter ? outer.distance : -inner.distance;
+    if (distance >= BALL_RADIUS) continue;
+
+    const magnitude = BALL_RADIUS - distance;
+    // Away from the wall: outward across the outer face, inward across the
+    // inner one.
+    const nx = takeOuter ? outer.nx : -inner.nx;
+    const ny = takeOuter ? outer.ny : -inner.ny;
+    fx[i]! += nx * magnitude;
+    fy[i]! += ny * magnitude;
     contacts[i]!++;
     wallForce += magnitude;
   }

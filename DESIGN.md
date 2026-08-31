@@ -60,8 +60,12 @@ Two rules make this seam real rather than decorative:
   faces, so a ball rests touching the face it is against and rolls off downhill
   either way. There is no hard collision anywhere: the wall is a hill a ball can
   be pushed over. Two signed distances to two squares do it, which is what makes
-  the corners fall out instead of being enumerated (see `rimAt`) — the inner
-  face answers containment, the wall's centreline answers force. Written that
+  the corners fall out instead of being enumerated (see `rimAt`). The wall is
+  measured as the *ring* between its two faces — `max(outer, -inner)`, the
+  standard subtraction — and never as one square offset by half a wall, because
+  offsetting a square outward rounds its corners: a ball settling diagonally
+  outside a corner came to rest 0.046 radii inside the wall it was leaning on.
+  Containment is a separate question and stays on the inner face. Written this
   way the inward force is algebraically identical to a zero-thickness wall's, so
   giving the wall a body moved nothing inside the box.
 - **`WALL_WIDTH` is a rule, not a drawing.** It lives in `types.ts` and

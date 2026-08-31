@@ -270,16 +270,29 @@ describe("the speed cap", () => {
 });
 
 describe("corners", () => {
-  // Box of side 10. The wall's crest runs through (5.11, 5.11) and its friends,
-  // half a wall outside the inner face at (5, 5) --- and it is the crest a ball
-  // outside the box is pushed away from.
+  // Box of side 10, so the wall runs from 5 out to 5.22 and its outer corner
+  // sits at (5.22, 5.22). That outer corner is what a ball outside the box
+  // leans on, and it is a corner rather than a rounded turn --- which is the
+  // whole reason the wall is measured as a ring and not as one offset square.
   const side = 10;
-  const CREST = side / 2 + WALL_WIDTH / 2;
-  const CORNER = { x: CREST, y: CREST };
-  const REST = BALL_RADIUS + WALL_WIDTH / 2;
+  const INNER = side / 2;
+  const OUTER = side / 2 + WALL_WIDTH;
+  const CORNER = { x: OUTER, y: OUTER };
 
   function fromCorner(ball: Ball): number {
     return Math.hypot(ball.x - CORNER.x, ball.y - CORNER.y);
+  }
+
+  /** Distance from the wall itself: the ring between the two faces. */
+  function fromWall(ball: Ball): number {
+    const sd = (h: number) => {
+      const qx = Math.abs(ball.x) - h;
+      const qy = Math.abs(ball.y) - h;
+      return qx > 0 || qy > 0
+        ? Math.hypot(Math.max(qx, 0), Math.max(qy, 0))
+        : Math.max(qx, qy);
+    };
+    return Math.max(sd(OUTER), -sd(INNER));
   }
 
   it("does not reach a ball level with a wall but far past its corner", () => {
@@ -300,9 +313,12 @@ describe("corners", () => {
   it("pushes a ball in the outer quadrant away from the corner point", () => {
     const result = settle([{ x: 5.3, y: 5.3 }], { side, tolerance: PRECISE });
     const ball = result.balls[0]!;
-    expect(fromCorner(ball)).toBeCloseTo(REST, 6);
+    // One radius from the outer corner point, not from an offset of it: an
+    // offset square has rounded corners, and resting against one left the ball
+    // 0.046 radii inside the wall.
+    expect(fromCorner(ball)).toBeCloseTo(BALL_RADIUS, 6);
     expect(ball.x).toBeCloseTo(ball.y, 9); // straight out along the diagonal
-    expect(ball.x).toBeGreaterThan(CREST);
+    expect(ball.x).toBeGreaterThan(OUTER);
   });
 
   it("pushes a ball in a side quadrant square off the wall it is outside", () => {
@@ -324,28 +340,22 @@ describe("corners", () => {
     expect(result.balls[0]!.y).toBeCloseTo(4, 6);
   });
 
-  it("settles a ball to the same distance from the crest wherever it starts", () => {
-    // The rest surface is one radius clear of the wall the whole way round,
-    // corners included — which is what makes the corner a rounded turn rather
-    // than a place where two rules meet and argue. Measured from the crest it
-    // is one distance for both sides, which is the symmetry the wall's own
-    // thickness leaves intact: a ball touches the face it is against, and the
-    // two faces are half a wall either side of the crest.
+  it("settles a ball one radius from the wall wherever it starts", () => {
+    // The rest surface is one radius clear of the wall the whole way round, on
+    // both sides and corners included — a ball's surface touches whichever face
+    // it is against. That is one statement about one solid, which is what the
+    // ring formulation buys: the corner stops being a place where two rules
+    // meet and argue.
     for (const start of [
       { x: 4.4, y: 0 },
       { x: 4.4, y: 4.4 },
       { x: 5.4, y: 5.4 },
       { x: 5.4, y: 1 },
       { x: 4.6, y: 4.9 },
+      { x: 5.5, y: 5.9 },
     ]) {
       const ball = settle([start], { side, tolerance: PRECISE }).balls[0]!;
-      const qx = Math.abs(ball.x) - CREST;
-      const qy = Math.abs(ball.y) - CREST;
-      const distance =
-        qx > 0 || qy > 0
-          ? Math.hypot(Math.max(qx, 0), Math.max(qy, 0))
-          : Math.max(qx, qy);
-      expect(Math.abs(distance), `from (${start.x}, ${start.y})`).toBeCloseTo(REST, 5);
+      expect(fromWall(ball), `from (${start.x}, ${start.y})`).toBeCloseTo(BALL_RADIUS, 5);
     }
   });
 });
