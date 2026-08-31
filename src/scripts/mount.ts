@@ -9,6 +9,7 @@ import {
   newSession,
   openSide,
   record,
+  serialise,
   type Session,
 } from "../game/session";
 import { ballAt, fitView, screenToWorld, viewBounds, VIEW_MARGIN, type ViewTransform } from "../game/view";
@@ -180,6 +181,12 @@ export interface GameOptions {
   session?: Session;
   /** Overrides the measured surface size; tests pass one, the page does not. */
   size?: { width: number; height: number };
+  /**
+   * Called whenever the session reaches a new resting state worth keeping ---
+   * a recorded score, a level change, or an arrangement that has come to rest.
+   * The page persists it; nothing in here decides where.
+   */
+  onCommit?: (session: Session) => void;
 }
 
 export function createGame(container: HTMLElement, opts: GameOptions = {}): Game {
@@ -256,6 +263,16 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     zooming = { fromScale: view.scale, tick: 0 };
   }
 
+  let lastCommitted = opts.onCommit ? serialise(session) : "";
+  /** Hand the session to the page to persist, but only when it has actually changed. */
+  function commit(): void {
+    if (!opts.onCommit) return;
+    const now = serialise(session);
+    if (now === lastCommitted) return;
+    lastCommitted = now;
+    opts.onCommit(session);
+  }
+
   function draw(): void {
     render(surface, session.balls, session.side, view, raisedBall());
     renderLevels(chrome.levels, histogramRows(session), { onSelect: goToLevel });
@@ -282,6 +299,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     const before = session.level;
     session = enterLevel(session, n);
     if (session.level !== before) beginZoom();
+    commit();
     refreshView();
     draw();
   }
@@ -294,6 +312,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
       beginZoom();
       pendingDrop = { index: session.balls.length - 1 };
     }
+    commit();
     refreshView();
     draw();
   }
@@ -367,6 +386,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
             session = record(session, closing.target, closing.finalBalls);
           }
           closing = null;
+          commit();
         }
         continue;
       }
@@ -382,6 +402,9 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
       if (result.maxDisplacement === 0 && !falling) break;
     }
     draw();
+    // Once everything has come to rest, keep where the balls ended up --- a
+    // reload should hand back the arrangement, not just the level.
+    if (!grab && !resize && !closing && !falling && !zooming && !pendingDrop) commit();
   }
 
   function pointerDown(x: number, y: number): void {

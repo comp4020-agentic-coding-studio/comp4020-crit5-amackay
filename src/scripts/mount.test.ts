@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createGame, type Game } from "./mount";
 import { advance, bestAt, newSession, openSide, record } from "../game/session";
 import { optimum } from "../game/optima";
@@ -534,6 +534,51 @@ describe("level select and advancing", () => {
     document.querySelectorAll<HTMLElement>("#levels a.level")[0]!.click();
     expect(button().hidden).toBe(true);
     won.destroy();
+  });
+});
+
+describe("persisting the session", () => {
+  it("commits after a completing compact", () => {
+    const onCommit = vi.fn();
+    const game = createGame(container, {
+      session: { ...newSession(1), balls: [{ x: 0, y: 0 }], side: 6 },
+      size: SIZE,
+      onCommit,
+    });
+    const h = game.session.side / 2 + WALL_WIDTH;
+    const handle = worldToScreen(game.view, { x: h, y: -h });
+    game.handleDown(handle.x, handle.y);
+    game.handleUp();
+    settleFrames(game);
+    expect(onCommit).toHaveBeenCalled();
+    expect(bestAt(onCommit.mock.lastCall![0], 1)).toBeDefined();
+    game.destroy();
+  });
+
+  it("commits on a level change", () => {
+    const onCommit = vi.fn();
+    let session = newSession(1);
+    session = record(session, optimum(1), session.balls);
+    const game = createGame(container, { session, size: SIZE, onCommit });
+    onCommit.mockClear();
+    document.querySelector<HTMLButtonElement>("button.advance")!.click();
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(onCommit.mock.lastCall![0].level).toBe(2);
+    game.destroy();
+  });
+
+  it("does not commit a frame that changed nothing", () => {
+    const onCommit = vi.fn();
+    const game = createGame(container, {
+      session: { ...newSession(1), balls: [{ x: 0, y: 0 }], side: 6 },
+      size: SIZE,
+      onCommit,
+    });
+    settleFrames(game, 5);
+    onCommit.mockClear();
+    settleFrames(game, 20);
+    expect(onCommit).not.toHaveBeenCalled();
+    game.destroy();
   });
 });
 
