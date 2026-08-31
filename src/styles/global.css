@@ -131,15 +131,14 @@ h1 {
   background:
     radial-gradient(160% 160% at 34% 24%, var(--card-lit) 0%, var(--card) 66%, var(--card-deep) 100%);
   will-change: transform;
-  /* compact() is one instantaneous state change; the ease is what turns a
-     click into a snap instead of a teleport. A drag skips it entirely ---
-     the handle sets width/height/transform every frame while it is held, and
-     transitioning a value that is already mid-change would make the box lag
-     behind the finger. */
+  /* The only motion this ease still covers is a level change's own jump; a
+     drag and a click-driven compact/de-compact both set width/height/
+     transform every frame while they run, and transitioning a value that is
+     already mid-change would make the box lag behind whatever is driving it. */
   transition: width 0.15s ease-out, height 0.15s ease-out, transform 0.15s ease-out;
 }
 
-.box.dragging {
+.box.animating {
   transition: none;
 }
 

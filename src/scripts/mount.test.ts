@@ -284,17 +284,35 @@ describe("dragging the background", () => {
 
 describe("the handle", () => {
   it("a click compacts and records a size", () => {
-    // One ball in a box far bigger than it needs: compacting has real room to
-    // close, so the record it leaves is a genuine result and not a no-op.
+    // One ball in a box bigger than it needs, but nowhere near ROOMY_SIDE:
+    // closing is now paced at MAX_STEP, so a starting side chosen for other
+    // tests' clearance would take thousands of frames to arrive.
+    const game = mount([{ x: 0, y: 0 }], 10);
+    const before = game.session.side;
+    const handle = handleAt(game);
+
+    game.handleDown(handle.x, handle.y);
+    game.handleUp();
+    // The close plays out over several frames, capped at the same MAX_STEP as
+    // everything else --- not one instantaneous jump.
+    settleFrames(game);
+
+    expect(game.session.side).toBeLessThan(before);
+    expect(bestAt(game.session, 1)).toBeDefined();
+    game.destroy();
+  });
+
+  it("closes the box gradually, never in a single step", () => {
     const game = mount([{ x: 0, y: 0 }]);
     const before = game.session.side;
     const handle = handleAt(game);
 
     game.handleDown(handle.x, handle.y);
     game.handleUp();
+    game.step();
 
     expect(game.session.side).toBeLessThan(before);
-    expect(bestAt(game.session, 1)).toBeDefined();
+    expect(game.session.side).toBeGreaterThan(2);
     game.destroy();
   });
 
@@ -336,6 +354,58 @@ describe("the handle", () => {
 
     expect(game.session.side).toBeGreaterThan(beforeSide);
     expect(game.session.balls).toEqual(before);
+    game.destroy();
+  });
+
+  it("a click de-compacts a drag left too tight to fit", () => {
+    const game = mount([
+      { x: -1, y: 0 },
+      { x: 1, y: 0 },
+    ], 10);
+    const handle = handleAt(game);
+    const tooTight = at(game, { x: 0.6, y: -0.6 });
+
+    game.handleDown(handle.x, handle.y);
+    game.handleMove(tooTight.x, tooTight.y);
+    expect(fitsNow(game.session.balls, game.session.side)).toBe(false);
+    const dragged = game.session.side;
+    game.handleUp();
+    // The drag's own release does not compact or de-compact; a click does.
+    game.handleDown(handle.x, handle.y);
+    game.handleUp();
+    settleFrames(game);
+
+    expect(game.session.side).toBeGreaterThan(dragged);
+    expect(fitsNow(game.session.balls, game.session.side)).toBe(true);
+    expect(bestAt(game.session, 2)).toBeDefined();
+    game.destroy();
+  });
+
+  it("a click ignores a ball left outside the box, and still closes around the rest", () => {
+    const game = mount([
+      { x: 0, y: 0 },
+      { x: 3, y: 0 },
+    ], 10);
+    const handle = handleAt(game);
+    // Drag the second ball out past where the box is about to close to; the
+    // first is left to be the "rest" compacting still has to close around.
+    const origin = at(game, { x: 3, y: 0 });
+    const outside = at(game, { x: 8, y: 8 });
+    game.pointerDown(origin.x, origin.y);
+    game.pointerMove(outside.x, outside.y);
+    game.pointerUp();
+    settleFrames(game);
+    const strandedBall = game.session.balls[1]!;
+
+    game.handleDown(handle.x, handle.y);
+    game.handleUp();
+    settleFrames(game);
+
+    // The stray ball never moved, and closing was not blocked by it.
+    expect(game.session.balls[1]).toEqual(strandedBall);
+    expect(game.session.side).toBeLessThan(10);
+    // No ball is actually inside, so nothing is worth recording yet.
+    expect(bestAt(game.session, 2)).toBeUndefined();
     game.destroy();
   });
 });

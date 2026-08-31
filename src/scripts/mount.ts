@@ -3,7 +3,7 @@ import { settleOnce } from "../game/settle";
 import { compact, fitsNow } from "../game/compact";
 import { newSession, openSide, record, type Session } from "../game/session";
 import { ballAt, fitView, screenToWorld, viewBounds, type ViewTransform } from "../game/view";
-import { BALL_RADIUS, type Ball } from "../game/types";
+import { BALL_RADIUS, type Ball, type Side } from "../game/types";
 import { createSurface, render, type Surface } from "./render";
 
 // The edge: DOM, pointers and the frame loop. Everything the rules need is a
@@ -124,6 +124,20 @@ interface Resize {
   moved: boolean;
 }
 
+/**
+ * A click's compact (or de-compact) playing out. `target`/`finalBalls` are
+ * compact()'s own exact, instantaneous answer — computed once, up front, so
+ * what eventually gets recorded never depends on the frame rate. `contained`
+ * says which balls the animation may touch; the rest are physically inert for
+ * its whole duration, which is what "ignore the balls outside the box" means
+ * on screen rather than just in the rule.
+ */
+interface Closing {
+  target: Side;
+  finalBalls: Ball[];
+  contained: boolean[];
+}
+
 export interface GameOptions {
   session?: Session;
   /** Overrides the measured surface size; tests pass one, the page does not. */
@@ -135,6 +149,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   let session: Session = opts.session ?? newSession();
   let grab: Grab | null = null;
   let resize: Resize | null = null;
+  let closing: Closing | null = null;
   /**
    * The released ball on its way back down, and how far it has left to fall.
    * Only ever one ball is off the plane, so this and a carried ball are the same
@@ -189,6 +204,42 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
           MAX_DROP,
         );
         falling = height > 0 ? { index: falling.index, height } : null;
+      }
+      if (closing) {
+        // The side moves at the same one dial as everything else the player
+        // watches, and only the contained balls are ever handed to the settle
+        // pass --- an outside ball is never even in the array, so it cannot
+        // move and cannot be pushed against.
+        const remaining = closing.target - session.side;
+        const delta = Math.sign(remaining) * Math.min(Math.abs(remaining), MAX_STEP);
+        const side = session.side + delta;
+        const containedIndex: number[] = [];
+        for (let i = 0; i < session.balls.length; i++) {
+          if (closing.contained[i]) containedIndex.push(i);
+        }
+        const sub = containedIndex.map((i) => session.balls[i]!);
+        const result = settleOnce(sub, { side, maxStep: MAX_STEP, bounds });
+        const balls = session.balls.slice();
+        containedIndex.forEach((originalIndex, k) => {
+          balls[originalIndex] = result.balls[k]!;
+        });
+        session = { ...session, side, balls };
+        if (side === closing.target) {
+          // Finalise with compact()'s own exact numbers, not whatever this
+          // frame's live settle happened to land on --- that is what keeps
+          // the recorded score frame-rate-independent. Still only a record if
+          // every ball is actually back inside: fitsNow scores the whole
+          // array, so a ball left outside keeps failing it, and compacting
+          // just the interior stays a real, visible result without being a
+          // scoreable one until the box comes back out far enough to hold it.
+          session = { ...session, side: closing.target, balls: closing.finalBalls };
+          if (fitsNow(closing.finalBalls, closing.target)) {
+            session = record(session, closing.target, closing.finalBalls);
+          }
+          surface.box.classList.remove("animating");
+          closing = null;
+        }
+        continue;
       }
       const result = settleOnce(session.balls, {
         side: session.side,
@@ -248,8 +299,9 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     resize = { downScreen: { x, y }, moved: false };
     // Off for the duration of the hold: a drag sets the side every move, and
     // transitioning a value that changes every frame would lag the box behind
-    // the finger instead of tracking it.
-    surface.box.classList.add("dragging");
+    // the finger instead of tracking it. A click's own compact/de-compact
+    // keeps it off afterwards too --- see handleUp.
+    surface.box.classList.add("animating");
   }
 
   function handleMove(x: number, y: number): void {
@@ -268,19 +320,18 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
 
   function handleUp(): void {
     if (!resize) return;
-    // Back on before the click's own resize below, so a compact reads as a
-    // snap: the click never changed the side itself, so nothing was mid-flight
-    // for a re-enabled transition to jump from.
-    surface.box.classList.remove("dragging");
-    // A click, not a drag: run the box closed and record what it reached.
-    // session.record() trusts the side it is given, so only compact()'s own
-    // fit check earns a record --- otherwise a drag-then-click could score a
-    // box the balls visibly do not fit in.
-    if (!resize.moved) {
+    if (resize.moved) {
+      // A drag: the side was already applied live, move by move, so the
+      // transition can come straight back on.
+      surface.box.classList.remove("animating");
+    } else {
+      // A click: work out exactly where compacting (or de-compacting, if the
+      // balls it contains do not currently fit) lands, then let step() play
+      // that out at the same MAX_STEP everything else obeys. "animating"
+      // stays on the whole time it runs, and is turned off in step() once it
+      // finishes.
       const result = compact(session.balls, session.side);
-      if (fitsNow(result.balls, result.side)) {
-        session = record(session, result.side, result.balls);
-      }
+      closing = { target: result.side, finalBalls: result.balls, contained: result.contained };
     }
     resize = null;
     draw();

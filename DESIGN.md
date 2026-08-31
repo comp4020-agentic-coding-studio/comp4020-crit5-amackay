@@ -190,19 +190,30 @@ What the milestones left behind, all still true and none obvious from the code:
   nothing is worth persisting until a level can be completed. It lands with the
   handle.
 - **`record()` trusts its caller on fit.** `stars()`/`isComplete()` are pure
-  threshold checks on `side` alone, with no geometric fit test, and `compact()`
-  only ever shrinks from its start side — it never grows back out if that side
-  didn't already fit. So a drag tighter than the arrangement fits, followed by
-  a click, can hand `record()` a side the balls don't actually occupy. The
-  handle's click path guards this itself with `fitsNow(result.balls,
-  result.side)` before recording; `record()` still doesn't check, because it
-  is the caller's job to know what it's claiming.
-- **The box-closing animation is a CSS transition, not new code.** `compact()`
-  is one instantaneous state change; easing `.box`'s width/height/transform is
-  what turns a click into a snap instead of a teleport, at zero cost. A drag
-  disables it (`.box.dragging`) — the handle already sets those properties
-  every frame while held, and transitioning a value that's already mid-change
-  would make the box lag behind the finger.
+  threshold checks on `side` alone, with no geometric fit test. `compact()`
+  can grow as well as shrink now (see below), but a ball left outside the box
+  still keeps the arrangement from ever reading as a fit, so a click can still
+  hand `record()` a side the balls don't fully occupy. The handle's click path
+  guards this itself with `fitsNow(result.balls, result.side)` before
+  recording; `record()` still doesn't check, because it is the caller's job to
+  know what it's claiming.
+- **`compact()` de-compacts, and ignores balls that have left the box.** A
+  ball whose centre is outside the square — the same test `rimAt` makes —
+  takes no part in the search and comes back untouched; only the contained
+  balls are shrunk or grown to fit. When the contained set doesn't already
+  fit the side it started from (a drag left it too tight), the same bisection
+  runs outward instead of inward, bracketing a fitting side before narrowing
+  on it, rather than sitting there not fitting forever.
+- **The box's motion is a real settle, not a CSS ease over a jump.**
+  `compact()` is still one instantaneous, exact computation — that stays what
+  gets recorded, so the score stays frame-rate-independent — but `mount.ts` no
+  longer applies its result in one step. It stores the target side and final
+  arrangement, then advances the side toward it by `MAX_STEP` per pass exactly
+  like the fall does, running `settleOnce` each pass on only the contained
+  balls, and only writes the exact precomputed numbers once the side arrives.
+  `.box.dragging` is `.box.animating` now, since a click-driven close sets the
+  same properties every frame a drag does and needs the same transition
+  suppressed.
 
 ## What is left
 

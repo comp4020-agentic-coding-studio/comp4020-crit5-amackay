@@ -135,3 +135,77 @@ describe("the promises compacting has to keep", () => {
     }
   });
 });
+
+describe("balls outside the box", () => {
+  it("leaves a ball outside untouched and still closes around the rest", () => {
+    const outside: Ball = { x: 8, y: 8 };
+    const balls: Ball[] = [{ x: -1.2, y: -1.2 }, { x: 1.2, y: 1.2 }, outside];
+
+    const result = compact(balls, 10);
+
+    expect(result.contained).toEqual([true, true, false]);
+    expect(result.balls[2]).toEqual(outside);
+    expect(result.side).toBeLessThan(optimum(2) + SLACK);
+    expect(result.side).toBeGreaterThan(optimum(2) - SLACK);
+  });
+
+  it("does not let an outside ball's own overhang block the interior search", () => {
+    // At the outside ball's own huge overhang, an unpartitioned residual check
+    // would never read as fitting, and the search would never even attempt to
+    // shrink around the other two.
+    const balls: Ball[] = [{ x: -1.2, y: -1.2 }, { x: 1.2, y: 1.2 }, { x: 100, y: 100 }];
+    const result = compact(balls, 10);
+    expect(result.side).toBeLessThan(10);
+  });
+});
+
+describe("de-compacting a box that no longer fits", () => {
+  it("grows, rather than shrinks, when the contained balls do not fit", () => {
+    // Two balls a diameter apart, dragged into a box far tighter than they fit.
+    const balls: Ball[] = [
+      { x: -1, y: 0 },
+      { x: 1, y: 0 },
+    ];
+    const tooTight = 2.5;
+    const result = compact(balls, tooTight);
+    expect(result.side).toBeGreaterThan(tooTight);
+    expect(result.contained).toEqual([true, true]);
+  });
+
+  it("never settles for a grown side the arrangement still does not fit in", () => {
+    // Contained (centres well within half of the tiny starting side) but
+    // heavily overlapping each other, so growing is the only way out.
+    const balls: Ball[] = [
+      { x: -0.3, y: 0 },
+      { x: 0.3, y: 0 },
+      { x: 0, y: 0.3 },
+    ];
+    const result = compact(balls, 1);
+    const half = result.side / 2;
+    for (const ball of result.balls) {
+      expect(Math.abs(ball.x)).toBeLessThanOrEqual(half - 1 + 1e-3);
+      expect(Math.abs(ball.y)).toBeLessThanOrEqual(half - 1 + 1e-3);
+    }
+    for (let i = 0; i < result.balls.length; i++) {
+      for (let j = i + 1; j < result.balls.length; j++) {
+        const a = result.balls[i]!;
+        const b = result.balls[j]!;
+        expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(2 - 1e-3);
+      }
+    }
+  });
+
+  it("ignores an outside ball while de-compacting the rest", () => {
+    const outside: Ball = { x: 50, y: 50 };
+    const balls: Ball[] = [
+      { x: -1, y: 0 },
+      { x: 1, y: 0 },
+      outside,
+    ];
+    const tooTight = 2.5;
+    const result = compact(balls, tooTight);
+    expect(result.contained).toEqual([true, true, false]);
+    expect(result.balls[2]).toEqual(outside);
+    expect(result.side).toBeGreaterThan(tooTight);
+  });
+});
