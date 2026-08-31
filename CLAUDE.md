@@ -93,7 +93,13 @@ from a previous week, where it silently 404s every asset on the live site.
 - Run `pnpm check` before pushing, and open the page in a browser (the
   `agent-browser` CLI works). The rendered page is the truth; this week, the
   *played* page is.
-- **A value written in a comment is not evidence.** Evaluate the function.
+- **A value written in a comment is not evidence.** Evaluate the function. For
+  anything in `src/game/`, the way to do that is a throwaway
+  `src/game/scratch-*.test.ts` that `console.log`s the number, run with
+  `pnpm vitest run <path> --reporter=verbose`, then deleted --- `node
+  --experimental-strip-types` cannot resolve the extensionless imports in there,
+  so it is not an option. Two of this week's bugs were a printed number
+  disagreeing with a passing test.
 - **"The same arrangement whatever the frame rate" is not a property this model
   has.** Walls only push inward, so any arrangement that is not jammed sits in a
   whole family of rest states and the path picks one. A test comparing positions
@@ -114,6 +120,12 @@ from a previous week, where it silently 404s every asset on the live site.
   number and turns "looks about right" into a figure that can be checked against
   the arithmetic. A screenshot confirms it is on screen; it cannot confirm it is
   at 5.000.
+- **But a read in the same frame as the input is one frame stale.** The game's
+  `requestAnimationFrame` callback is registered first and runs first, so a
+  script that dispatches a pointer event and reads straight afterwards is
+  reading the state computed for the *previous* pointer position. Measuring the
+  pointer constraint that way reported a 0.75-radius intrusion that did not
+  exist; reading on the next frame gave 1.0000 exactly.
 - **The `description` meta and any `alt` text are the exception to the
   no-prose rule** — the reader has not seen the page yet, so describing it
   is the whole job. Everywhere a player can already look, delete instead.
