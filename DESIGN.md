@@ -214,6 +214,31 @@ What the milestones left behind, all still true and none obvious from the code:
   `.box.dragging` is `.box.animating` now, since a click-driven close sets the
   same properties every frame a drag does and needs the same transition
   suppressed.
+- **A drag out is capped at exactly what the view was built to show.** The
+  view is fit to `openSide(level) + 2 * VIEW_MARGIN`, so that framed extent
+  minus the walls (which stand outside `side`) is the largest side a drag can
+  reach without pushing the box's own corner off screen — `mount.ts` clamps
+  to it. `compact()`'s own de-compaction isn't separately clamped: the balls
+  it grows around were already inside that cap before the drag squeezed them,
+  so the same room is always still there to grow back into.
+- **The handle is a triangle filed to a ball's own clearance, not a circle
+  sized by eye.** Its right angle sits flush on the box's outer corner, and
+  its hypotenuse is placed as far in as it can be while staying tangent to —
+  never overlapping — a ball settled fully into that corner (touching both
+  walls). That distance is `2 * (WALL_WIDTH + BALL_RADIUS) - BALL_RADIUS *
+  sqrt(2)`, derived rather than tuned, so it never needs re-deriving if either
+  constant changes.
+- **The handle carries no `z-index` and its own resize glyph.** It paints after
+  `.box` in document order and so above it, but every ball has an explicit
+  `z-index` of its own and so still paints above the handle — a ball resting in
+  that corner sits on the handle the way it sits on the tray under it. A
+  two-headed arrow is drawn on the triangle itself (`.handle::after`, a
+  `clip-path` shape rather than a character), because the `nwse-resize` cursor
+  only says anything once a player is already on top of it, and this is the
+  game's one control. Not a unicode ⤡: the visible triangle is only the half
+  of the handle's own square nearer its outer corner, so a glyph sized to the
+  full square has its far head sitting in the clipped-off half — this one is
+  scaled to the near quadrant instead, so both tips clear the clip.
 
 ## What is left
 

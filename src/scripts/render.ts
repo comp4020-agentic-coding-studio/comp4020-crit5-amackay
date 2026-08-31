@@ -5,8 +5,17 @@ import { BALL_RADIUS, WALL_WIDTH, type Ball, type Side } from "../game/types";
 // Rendering writes and never reads back. Nothing here measures an element, so a
 // rule bug and a rendering bug cannot be confused for one another.
 
-/** Handle diameter, in ball radii --- bigger than a ball, for an easy grab. */
-const HANDLE_RADII = 1.4;
+/**
+ * Leg length of the handle's triangle, in ball radii. The triangle's right
+ * angle sits flush on the box's outer corner, so its hypotenuse is the line
+ * `dx + dy = HANDLE_LEG` in distance-from-the-corner coordinates. The deepest
+ * a ball can settle into that corner touches both walls, which puts its
+ * centre at `WALL_WIDTH + BALL_RADIUS` from the corner along each axis; the
+ * hypotenuse clears that ball with no overlap exactly when `HANDLE_LEG <=
+ * 2 * (WALL_WIDTH + BALL_RADIUS) - BALL_RADIUS * sqrt(2)`, so this is that
+ * bound taken as an equality --- as far in as the diagonal can go.
+ */
+const HANDLE_LEG = 2 * (WALL_WIDTH + BALL_RADIUS) - BALL_RADIUS * Math.SQRT2;
 
 export interface Surface {
   box: HTMLElement;
@@ -85,13 +94,14 @@ export function render(
   surface.box.style.height = `${boxPx}px`;
   surface.box.style.transform = `translate(${corner.x}px, ${corner.y}px)`;
 
-  // The handle sits on the tray's outer corner, bottom-right, past the wall's
-  // own outer face --- the one control surface of the game, kept off the balls
-  // and off the box body so it never competes with either for a grab.
+  // The handle sits on the tray's outer corner, bottom-right, at the wall's
+  // own outer face --- flush with it, not past it, so the triangle never
+  // stands out past the box it belongs to. worldToScreen of that corner point
+  // is exactly the triangle's own right-angle vertex.
   const handleWorld = side / 2 + WALL_WIDTH;
-  const handlePx = HANDLE_RADII * view.scale;
-  const handleScreen = worldToScreen(view, { x: handleWorld, y: -handleWorld });
+  const handlePx = HANDLE_LEG * view.scale;
+  const handleCorner = worldToScreen(view, { x: handleWorld, y: -handleWorld });
   surface.handle.style.width = `${handlePx}px`;
   surface.handle.style.height = `${handlePx}px`;
-  surface.handle.style.transform = `translate(${handleScreen.x - handlePx / 2}px, ${handleScreen.y - handlePx / 2}px)`;
+  surface.handle.style.transform = `translate(${handleCorner.x - handlePx}px, ${handleCorner.y - handlePx}px)`;
 }

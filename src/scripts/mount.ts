@@ -2,8 +2,8 @@ import { CARRY_HEIGHT, MAX_SPEED, nearestGap, stepDescent } from "../game/descen
 import { settleOnce } from "../game/settle";
 import { compact, fitsNow } from "../game/compact";
 import { newSession, openSide, record, type Session } from "../game/session";
-import { ballAt, fitView, screenToWorld, viewBounds, type ViewTransform } from "../game/view";
-import { BALL_RADIUS, type Ball, type Side } from "../game/types";
+import { ballAt, fitView, screenToWorld, viewBounds, VIEW_MARGIN, type ViewTransform } from "../game/view";
+import { BALL_RADIUS, WALL_WIDTH, type Ball, type Side } from "../game/types";
 import { createSurface, render, type Surface } from "./render";
 
 // The edge: DOM, pointers and the frame loop. Everything the rules need is a
@@ -165,6 +165,13 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   }
 
   let bounds: { x: number; y: number } | null = null;
+  /**
+   * The largest side a drag on the handle may reach. The view is fitted to
+   * `openSide(level) + 2 * VIEW_MARGIN`, so that is exactly the box's outer
+   * footprint (side + 2 * WALL_WIDTH) at the point it would fill the frame --
+   * a drag beyond this would push the box, and its corner, off screen.
+   */
+  let maxSide: Side = openSide(session.level) + 2 * VIEW_MARGIN - 2 * WALL_WIDTH;
 
   /**
    * Fit to the level's opening side, not the live one --- so closing the box
@@ -177,6 +184,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     const { width, height } = measureSurface();
     view = fitView(openSide(session.level), width, height);
     bounds = viewBounds(view, width, height);
+    maxSide = openSide(session.level) + 2 * VIEW_MARGIN - 2 * WALL_WIDTH;
   }
 
   function draw(): void {
@@ -313,7 +321,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     // instead of being clipped away, and what makes a drag larger a guaranteed
     // no-op on the balls --- this path never touches session.balls at all.
     const world = screenToWorld(view, x, y);
-    const side = Math.max(MIN_SIDE, 2 * Math.max(Math.abs(world.x), Math.abs(world.y)));
+    const side = Math.min(maxSide, Math.max(MIN_SIDE, 2 * Math.max(Math.abs(world.x), Math.abs(world.y))));
     session = { ...session, side };
     draw();
   }

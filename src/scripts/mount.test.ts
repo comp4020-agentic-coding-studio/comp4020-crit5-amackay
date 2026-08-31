@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createGame, type Game } from "./mount";
 import { advance, bestAt, newSession, openSide, record } from "../game/session";
 import { fitsNow } from "../game/compact";
-import { worldToScreen } from "../game/view";
+import { VIEW_MARGIN, worldToScreen } from "../game/view";
 import { WALL_WIDTH, type Ball } from "../game/types";
 
 // jsdom has no layout, so the surface is given its size explicitly rather than
@@ -343,17 +343,34 @@ describe("the handle", () => {
   });
 
   it("a drag larger never moves a ball", () => {
-    const game = mount([{ x: 0, y: 0 }]);
+    const game = mount([{ x: 0, y: 0 }], 5);
     const before = game.session.balls.map((b) => ({ ...b }));
     const beforeSide = game.session.side;
     const handle = handleAt(game);
-    const looser = at(game, { x: 25, y: -25 });
+    const looser = at(game, { x: 4, y: -4 });
 
     game.handleDown(handle.x, handle.y);
     game.handleMove(looser.x, looser.y);
 
     expect(game.session.side).toBeGreaterThan(beforeSide);
     expect(game.session.balls).toEqual(before);
+    game.destroy();
+  });
+
+  it("a drag cannot grow the box past what the view can show", () => {
+    // The view is fit to the level's opening side plus its own margin, so
+    // that framed extent — minus the walls, which stand outside `side` — is
+    // exactly the largest side a drag may reach without pushing the box, and
+    // the handle sitting on its corner, off screen.
+    const game = mount([{ x: 0, y: 0 }], 5);
+    const maxSide = openSide(1) + 2 * VIEW_MARGIN - 2 * WALL_WIDTH;
+    const handle = handleAt(game);
+    const farOff = at(game, { x: 1000, y: -1000 });
+
+    game.handleDown(handle.x, handle.y);
+    game.handleMove(farOff.x, farOff.y);
+
+    expect(game.session.side).toBeCloseTo(maxSide, 5);
     game.destroy();
   });
 

@@ -162,24 +162,56 @@ h1 {
     inset calc(var(--r) * 0.11) calc(var(--r) * 0.2) calc(var(--r) * 0.42) rgb(var(--shadow) / 30%);
 }
 
-/* The handle: a metal grommet on the tray's corner, the one thing on screen
-   that isn't carpet, wall or ball --- which is what says it's for touching.
-   Positioned and sized by render.ts every frame; z-index keeps it above the
-   wall it sits on and above a raised ball passing near it. */
+/* The handle: a metal corner fitting on the tray, the one thing on screen that
+   isn't carpet, wall or ball --- which is what says it's for touching. Its
+   right angle sits flush on the box's own outer corner, filed by render.ts to
+   be exactly the largest triangle that still clears a ball settled there, so
+   it never overlaps a ball and never stands out past the box either.
+   Positioned and sized by render.ts every frame. No z-index: it stays at the
+   same auto-ordered layer as .box, painted after it in document order and so
+   above it, but below every ball, which is given an explicit z-index of its
+   own --- a ball resting in that corner sits on top of the handle exactly the
+   way it sits on top of the tray underneath it. */
 .handle {
   position: absolute;
   top: 0;
   left: 0;
-  z-index: 3;
-  border-radius: 50%;
-  cursor: grab;
-  background: radial-gradient(circle at 34% 27%, #eee2c8 0%, #d8c79f 45%, #a8925f 100%);
+  clip-path: polygon(100% 100%, 100% 0%, 0% 100%);
+  cursor: nwse-resize;
+  background: radial-gradient(circle at 78% 78%, #eee2c8 0%, #d8c79f 45%, #a8925f 100%);
   box-shadow:
-    calc(var(--r) * 0.08) calc(var(--r) * 0.16) calc(var(--r) * 0.3) rgb(var(--shadow) / 45%),
     inset calc(var(--r) * -0.08) calc(var(--r) * -0.1) calc(var(--r) * 0.18) rgb(var(--shadow) / 35%),
     inset calc(var(--r) * 0.06) calc(var(--r) * 0.08) calc(var(--r) * 0.12) rgb(255 255 255 / 40%);
 }
 
-.handle:active {
-  cursor: grabbing;
+/* The resize glyph itself, drawn on the fitting rather than left to the
+   cursor alone --- the cursor only tells a player anything once they are
+   already on top of it, and this is the one control in the game. A unicode
+   arrow glyph does not work here: the visible triangle is only the half of
+   the handle's square nearer its own outer corner (x + y >= 100%, in the
+   square's own percentage space), and a two-headed arrow sized to the full
+   square has its far head sitting in the clipped-off half. So this is a
+   two-headed arrow drawn as a plain shape rather than a character, scaled
+   to fit inside that lower-right quadrant instead of the full square --- both
+   tips, and every point between them, comfortably past x + y = 100% (a 4-point
+   margin at the nearer tip), so nothing here is cut by the parent's own
+   clip-path. */
+.handle::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--ink);
+  opacity: 0.55;
+  clip-path: polygon(
+    54% 54%,
+    66% 57%,
+    63% 60%,
+    94% 91%,
+    97% 88%,
+    100% 100%,
+    88% 97%,
+    91% 94%,
+    60% 63%,
+    57% 66%
+  );
 }
