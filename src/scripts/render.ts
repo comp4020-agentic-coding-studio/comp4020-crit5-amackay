@@ -5,8 +5,12 @@ import { BALL_RADIUS, WALL_WIDTH, type Ball, type Side } from "../game/types";
 // Rendering writes and never reads back. Nothing here measures an element, so a
 // rule bug and a rendering bug cannot be confused for one another.
 
+/** Handle diameter, in ball radii --- bigger than a ball, for an easy grab. */
+const HANDLE_RADII = 1.4;
+
 export interface Surface {
   box: HTMLElement;
+  handle: HTMLElement;
   balls: HTMLElement[];
   container: HTMLElement;
 }
@@ -16,7 +20,10 @@ export function createSurface(container: HTMLElement): Surface {
   const box = container.ownerDocument.createElement("div");
   box.className = "box";
   container.append(box);
-  return { container, box, balls: [] };
+  const handle = container.ownerDocument.createElement("div");
+  handle.className = "handle";
+  container.append(handle);
+  return { container, box, handle, balls: [] };
 }
 
 /** Bring the number of ball elements into line with the arrangement. */
@@ -77,4 +84,14 @@ export function render(
   surface.box.style.width = `${boxPx}px`;
   surface.box.style.height = `${boxPx}px`;
   surface.box.style.transform = `translate(${corner.x}px, ${corner.y}px)`;
+
+  // The handle sits on the tray's outer corner, bottom-right, past the wall's
+  // own outer face --- the one control surface of the game, kept off the balls
+  // and off the box body so it never competes with either for a grab.
+  const handleWorld = side / 2 + WALL_WIDTH;
+  const handlePx = HANDLE_RADII * view.scale;
+  const handleScreen = worldToScreen(view, { x: handleWorld, y: -handleWorld });
+  surface.handle.style.width = `${handlePx}px`;
+  surface.handle.style.height = `${handlePx}px`;
+  surface.handle.style.transform = `translate(${handleScreen.x - handlePx / 2}px, ${handleScreen.y - handlePx / 2}px)`;
 }

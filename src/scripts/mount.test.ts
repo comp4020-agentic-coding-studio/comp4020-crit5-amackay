@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
 import { createGame, type Game } from "./mount";
-import { advance, newSession, record } from "../game/session";
+import { advance, bestAt, newSession, record } from "../game/session";
+import { fitsNow } from "../game/compact";
 import { worldToScreen } from "../game/view";
-import type { Ball } from "../game/types";
+import { WALL_WIDTH, type Ball } from "../game/types";
 
 // jsdom has no layout, so the surface is given its size explicitly rather than
 // measured. Everything below drives the game through screen pixels, the same
@@ -38,6 +39,12 @@ function at(game: Game, point: Ball): { x: number; y: number } {
   return worldToScreen(game.view, point);
 }
 
+/** Where on screen the handle sits right now, at the box's outer corner. */
+function handleAt(game: Game): { x: number; y: number } {
+  const h = game.session.side / 2 + WALL_WIDTH;
+  return at(game, { x: h, y: -h });
+}
+
 function settleFrames(game: Game, frames = 200): void {
   for (let i = 0; i < frames; i++) game.step();
 }
@@ -51,6 +58,7 @@ describe("mounting", () => {
     ]);
     expect(container.querySelectorAll(".ball")).toHaveLength(3);
     expect(container.querySelectorAll(".box")).toHaveLength(1);
+    expect(container.querySelectorAll(".handle")).toHaveLength(1);
     game.destroy();
   });
 
@@ -260,6 +268,64 @@ describe("dragging the background", () => {
       }
     }
     game.pointerUp();
+    game.destroy();
+  });
+});
+
+describe("the handle", () => {
+  it("a click compacts and records a size", () => {
+    // One ball in a box far bigger than it needs: compacting has real room to
+    // close, so the record it leaves is a genuine result and not a no-op.
+    const game = mount([{ x: 0, y: 0 }]);
+    const before = game.session.side;
+    const handle = handleAt(game);
+
+    game.handleDown(handle.x, handle.y);
+    game.handleUp();
+
+    expect(game.session.side).toBeLessThan(before);
+    expect(bestAt(game.session, 1)).toBeDefined();
+    game.destroy();
+  });
+
+  it("a drag to a smaller side leaves balls overlapping the wall rather than clipping them", () => {
+    const game = mount([
+      { x: -3, y: 0 },
+      { x: 3, y: 0 },
+    ]);
+    const before = game.session.balls.map((b) => ({ ...b }));
+    const handle = handleAt(game);
+    // Nowhere near either ball's own screen position, so this is squarely a
+    // handle drag rather than something a hit-test on a ball could confuse it
+    // with.
+    const tighter = at(game, { x: 0.5, y: -0.5 });
+
+    game.handleDown(handle.x, handle.y);
+    game.handleMove(tighter.x, tighter.y);
+
+    expect(game.session.side).toBeLessThan(ROOMY_SIDE);
+    expect(fitsNow(game.session.balls, game.session.side)).toBe(false);
+    // Not clipped, not moved: the balls are exactly where they were.
+    expect(game.session.balls).toEqual(before);
+
+    game.handleUp();
+    // A drag, not a click: releasing it does not compact or record.
+    expect(bestAt(game.session, 2)).toBeUndefined();
+    game.destroy();
+  });
+
+  it("a drag larger never moves a ball", () => {
+    const game = mount([{ x: 0, y: 0 }]);
+    const before = game.session.balls.map((b) => ({ ...b }));
+    const beforeSide = game.session.side;
+    const handle = handleAt(game);
+    const looser = at(game, { x: 20, y: -20 });
+
+    game.handleDown(handle.x, handle.y);
+    game.handleMove(looser.x, looser.y);
+
+    expect(game.session.side).toBeGreaterThan(beforeSide);
+    expect(game.session.balls).toEqual(before);
     game.destroy();
   });
 });

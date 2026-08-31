@@ -189,24 +189,25 @@ What the milestones left behind, all still true and none obvious from the code:
   `deserialise` are pure and covered; nothing calls `localStorage` yet, because
   nothing is worth persisting until a level can be completed. It lands with the
   handle.
+- **`record()` trusts its caller on fit.** `stars()`/`isComplete()` are pure
+  threshold checks on `side` alone, with no geometric fit test, and `compact()`
+  only ever shrinks from its start side — it never grows back out if that side
+  didn't already fit. So a drag tighter than the arrangement fits, followed by
+  a click, can hand `record()` a side the balls don't actually occupy. The
+  handle's click path guards this itself with `fitsNow(result.balls,
+  result.side)` before recording; `record()` still doesn't check, because it
+  is the caller's job to know what it's claiming.
+- **The box-closing animation is a CSS transition, not new code.** `compact()`
+  is one instantaneous state change; easing `.box`'s width/height/transform is
+  what turns a click into a snap instead of a teleport, at zero cost. A drag
+  disables it (`.box.dragging`) — the handle already sets those properties
+  every frame while held, and transitioning a value that's already mid-change
+  would make the box lag behind the finger.
 
 ## What is left
 
 Each milestone is a commit or a short range, ends with `pnpm check` green, and
 adds the tests named under it.
-
-### M7 — the box handle
-
-One handle: click compacts, drag resizes, including tighter than currently fits
-so balls overflow. This is the whole control surface of the game.
-
-*Tests:* a click on the handle runs a compact and records a size; a drag to a
-smaller side leaves balls overlapping the ramp rather than clipping them; a drag
-larger never moves a ball.
-
-**Playtest ask.** The first ten seconds of level 1, cold, with no words on
-screen: is the handle obviously a thing to grab? Does the failure — the box
-stopping short of par — read as failure?
 
 ### M8 — level select, zoom, drop
 
@@ -262,8 +263,6 @@ nothing here can judge it.
 
 ## Still open after this plan
 
-- How the box-closing animation is rendered (decided in M7, from what the
-  handle turns out to feel like).
 - The star tolerance widths, fixed as numbers in `score.ts` but only a
   playtest around M9 can judge as difficulty.
 - `MAX_SPEED`, and with it the fall, which is derived from it. Half a second for

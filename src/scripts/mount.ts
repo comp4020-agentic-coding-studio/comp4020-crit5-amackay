@@ -1,8 +1,9 @@
 import { CARRY_HEIGHT, MAX_SPEED, nearestGap, stepDescent } from "../game/descent";
 import { settleOnce } from "../game/settle";
-import { newSession, type Session } from "../game/session";
+import { compact, fitsNow } from "../game/compact";
+import { newSession, record, type Session } from "../game/session";
 import { ballAt, fitView, screenToWorld, viewBounds, type ViewTransform } from "../game/view";
-import type { Ball } from "../game/types";
+import { BALL_RADIUS, type Ball } from "../game/types";
 import { createSurface, render, type Surface } from "./render";
 
 // The edge: DOM, pointers and the frame loop. Everything the rules need is a
@@ -66,6 +67,21 @@ const MAX_DROP = CARRY_HEIGHT / (BEAT_SECONDS * FRAME_RATE * PASSES_PER_STEP);
  */
 const MIN_DROP = MAX_STEP;
 
+/**
+ * The floor a handle drag may squeeze the box to. A UI clamp on the control,
+ * not a rule about the box: nothing in src/game/ needs a side to stay above
+ * this, it just keeps the handle from being dragged to zero or negative.
+ */
+const MIN_SIDE = 2 * BALL_RADIUS;
+
+/**
+ * How far the pointer may move, in screen pixels, before a handle gesture
+ * counts as a drag rather than a click. Screen space rather than world space
+ * because it is about what the gesture looked like to the finger, which does
+ * not change with the view's zoom.
+ */
+const CLICK_THRESHOLD_PX = 4;
+
 export interface Game {
   /**
    * Advance by one frame. The caller owns requestAnimationFrame, not this, and
@@ -76,6 +92,10 @@ export interface Game {
   pointerDown(x: number, y: number): void;
   pointerMove(x: number, y: number): void;
   pointerUp(): void;
+  /** The handle: the box's one control surface. Same screen-pixel input. */
+  handleDown(x: number, y: number): void;
+  handleMove(x: number, y: number): void;
+  handleUp(): void;
   readonly session: Session;
   readonly view: ViewTransform;
   destroy(): void;
@@ -94,6 +114,16 @@ interface Grab {
   offset: Ball;
 }
 
+/**
+ * A grab on the handle rather than on a ball. `moved` is what tells
+ * `handleUp` whether this was a click (compact) or a drag (the side was
+ * already applied live, move by move).
+ */
+interface Resize {
+  downScreen: { x: number; y: number };
+  moved: boolean;
+}
+
 export interface GameOptions {
   session?: Session;
   /** Overrides the measured surface size; tests pass one, the page does not. */
@@ -104,6 +134,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   const surface: Surface = createSurface(container);
   let session: Session = opts.session ?? newSession();
   let grab: Grab | null = null;
+  let resize: Resize | null = null;
   /**
    * The released ball on its way back down, and how far it has left to fall.
    * Only ever one ball is off the plane, so this and a carried ball are the same
@@ -206,6 +237,48 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     grab = null;
   }
 
+  function handleDown(x: number, y: number): void {
+    resize = { downScreen: { x, y }, moved: false };
+    // Off for the duration of the hold: a drag sets the side every move, and
+    // transitioning a value that changes every frame would lag the box behind
+    // the finger instead of tracking it.
+    surface.box.classList.add("dragging");
+  }
+
+  function handleMove(x: number, y: number): void {
+    if (!resize) return;
+    const traveled = Math.hypot(x - resize.downScreen.x, y - resize.downScreen.y);
+    if (traveled > CLICK_THRESHOLD_PX) resize = { ...resize, moved: true };
+    // Live, and nothing else: no settle, no clipping. That is what lets a drag
+    // tighter than the arrangement fits leave balls overlapping the wall
+    // instead of being clipped away, and what makes a drag larger a guaranteed
+    // no-op on the balls --- this path never touches session.balls at all.
+    const world = screenToWorld(view, x, y);
+    const side = Math.max(MIN_SIDE, 2 * Math.max(Math.abs(world.x), Math.abs(world.y)));
+    session = { ...session, side };
+    draw();
+  }
+
+  function handleUp(): void {
+    if (!resize) return;
+    // Back on before the click's own resize below, so a compact reads as a
+    // snap: the click never changed the side itself, so nothing was mid-flight
+    // for a re-enabled transition to jump from.
+    surface.box.classList.remove("dragging");
+    // A click, not a drag: run the box closed and record what it reached.
+    // session.record() trusts the side it is given, so only compact()'s own
+    // fit check earns a record --- otherwise a drag-then-click could score a
+    // box the balls visibly do not fit in.
+    if (!resize.moved) {
+      const result = compact(session.balls, session.side);
+      if (fitsNow(result.balls, result.side)) {
+        session = record(session, result.side, result.balls);
+      }
+    }
+    resize = null;
+    draw();
+  }
+
   const onDown = (event: PointerEvent) => {
     // Stops the browser starting a native drag or a text selection on what is,
     // to it, a plain div — either of which swallows the pointermove stream and
@@ -214,14 +287,29 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     if (container.setPointerCapture) container.setPointerCapture(event.pointerId);
     pointerDown(event.clientX, event.clientY);
   };
-  const onMove = (event: PointerEvent) => pointerMove(event.clientX, event.clientY);
-  const onUp = () => pointerUp();
+  const onHandleDown = (event: PointerEvent) => {
+    // Stopped before it reaches the container: the handle is its own control,
+    // never also a ball grab or a background bump on the same gesture.
+    event.preventDefault();
+    event.stopPropagation();
+    if (container.setPointerCapture) container.setPointerCapture(event.pointerId);
+    handleDown(event.clientX, event.clientY);
+  };
+  const onMove = (event: PointerEvent) => {
+    if (resize) handleMove(event.clientX, event.clientY);
+    else pointerMove(event.clientX, event.clientY);
+  };
+  const onUp = () => {
+    if (resize) handleUp();
+    else pointerUp();
+  };
 
   // Move and release listen on the window, not the surface: a drag that leaves
   // the element, or one the browser never gave us pointer capture for, still
   // has to keep tracking and still has to end.
   const view_ = container.ownerDocument.defaultView ?? window;
   container.addEventListener("pointerdown", onDown);
+  surface.handle.addEventListener("pointerdown", onHandleDown);
   view_.addEventListener("pointermove", onMove);
   view_.addEventListener("pointerup", onUp);
   view_.addEventListener("pointercancel", onUp);
@@ -235,6 +323,9 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     pointerDown,
     pointerMove,
     pointerUp,
+    handleDown,
+    handleMove,
+    handleUp,
     get session() {
       return session;
     },
@@ -243,6 +334,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     },
     destroy() {
       container.removeEventListener("pointerdown", onDown);
+      surface.handle.removeEventListener("pointerdown", onHandleDown);
       view_.removeEventListener("pointermove", onMove);
       view_.removeEventListener("pointerup", onUp);
       view_.removeEventListener("pointercancel", onUp);
