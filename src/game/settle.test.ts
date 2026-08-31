@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { measure, settle, settleOnce } from "./settle";
-import type { Ball } from "./types";
+import { BALL_RADIUS, WALL_WIDTH, type Ball } from "./types";
 
 const ROOMY = 40;
 
@@ -100,20 +100,29 @@ describe("walls", () => {
   });
 
   it("sheds a ball off the outer slope right out of the box", () => {
-    // Outside the line, away means out. This is the half that makes a wall a
+    // Past the crest, away means out. This is the half that makes a wall a
     // hill rather than a fence, and it is what lets a box dragged too tight
     // throw balls out instead of merely refusing to close.
+    //
+    // Every start is past the crest at side/2 + WALL_WIDTH/2. A ball inside it
+    // is on the wall's inner half and belongs to the test above.
     const side = 10;
-    for (const x of [5.01, 5.4, 5.9, 5.99]) {
+    for (const x of [5.2, 5.5, 6.0, 6.2]) {
       const result = settle([{ x, y: 0 }], { side, tolerance: PRECISE });
-      expect(result.balls[0]!.x, `from x = ${x}`).toBeCloseTo(side / 2 + 1, 6);
+      // Rest is against the wall's outer face: the face, plus a radius.
+      expect(result.balls[0]!.x, `from x = ${x}`).toBeCloseTo(
+        side / 2 + WALL_WIDTH + BALL_RADIUS,
+        6,
+      );
     }
   });
 
-  it("drops a ball balanced exactly on the ridge inward", () => {
+  it("drops a ball balanced exactly on the crest inward", () => {
     // IDEA.md asks for an exact alignment to be broken rather than to persist.
-    const result = settle([{ x: 5, y: 0 }], { side: 10, tolerance: PRECISE });
-    expect(result.balls[0]!.x).toBeCloseTo(4, 6);
+    // The crest is the middle of the wall, not its inner face.
+    const side = 10;
+    const result = settle([{ x: side / 2 + WALL_WIDTH / 2, y: 0 }], { side, tolerance: PRECISE });
+    expect(result.balls[0]!.x).toBeCloseTo(side / 2 - BALL_RADIUS, 6);
   });
 
   it("leaves a ball well clear of the ridge alone", () => {
@@ -151,9 +160,13 @@ describe("walls", () => {
 });
 
 describe("corners", () => {
-  // Box of side 10, so the boundary runs through (5, 5) and its friends.
+  // Box of side 10. The wall's crest runs through (5.11, 5.11) and its friends,
+  // half a wall outside the inner face at (5, 5) --- and it is the crest a ball
+  // outside the box is pushed away from.
   const side = 10;
-  const CORNER = { x: 5, y: 5 };
+  const CREST = side / 2 + WALL_WIDTH / 2;
+  const CORNER = { x: CREST, y: CREST };
+  const REST = BALL_RADIUS + WALL_WIDTH / 2;
 
   function fromCorner(ball: Ball): number {
     return Math.hypot(ball.x - CORNER.x, ball.y - CORNER.y);
@@ -177,14 +190,14 @@ describe("corners", () => {
   it("pushes a ball in the outer quadrant away from the corner point", () => {
     const result = settle([{ x: 5.3, y: 5.3 }], { side, tolerance: PRECISE });
     const ball = result.balls[0]!;
-    expect(fromCorner(ball)).toBeCloseTo(1, 6);
+    expect(fromCorner(ball)).toBeCloseTo(REST, 6);
     expect(ball.x).toBeCloseTo(ball.y, 9); // straight out along the diagonal
-    expect(ball.x).toBeGreaterThan(5);
+    expect(ball.x).toBeGreaterThan(CREST);
   });
 
   it("pushes a ball in a side quadrant square off the wall it is outside", () => {
     const result = settle([{ x: 5.5, y: 2 }], { side, tolerance: PRECISE });
-    expect(result.balls[0]!.x).toBeCloseTo(6, 6);
+    expect(result.balls[0]!.x).toBeCloseTo(side / 2 + WALL_WIDTH + BALL_RADIUS, 6);
     expect(result.balls[0]!.y).toBeCloseTo(2, 9); // and not along the other axis
   });
 
@@ -201,10 +214,13 @@ describe("corners", () => {
     expect(result.balls[0]!.y).toBeCloseTo(4, 6);
   });
 
-  it("settles a ball to the same distance from the box wherever it starts", () => {
-    // The rest surface is one radius from the boundary the whole way round,
+  it("settles a ball to the same distance from the crest wherever it starts", () => {
+    // The rest surface is one radius clear of the wall the whole way round,
     // corners included — which is what makes the corner a rounded turn rather
-    // than a place where two rules meet and argue.
+    // than a place where two rules meet and argue. Measured from the crest it
+    // is one distance for both sides, which is the symmetry the wall's own
+    // thickness leaves intact: a ball touches the face it is against, and the
+    // two faces are half a wall either side of the crest.
     for (const start of [
       { x: 4.4, y: 0 },
       { x: 4.4, y: 4.4 },
@@ -213,13 +229,13 @@ describe("corners", () => {
       { x: 4.6, y: 4.9 },
     ]) {
       const ball = settle([start], { side, tolerance: PRECISE }).balls[0]!;
-      const qx = Math.abs(ball.x) - side / 2;
-      const qy = Math.abs(ball.y) - side / 2;
+      const qx = Math.abs(ball.x) - CREST;
+      const qy = Math.abs(ball.y) - CREST;
       const distance =
         qx > 0 || qy > 0
           ? Math.hypot(Math.max(qx, 0), Math.max(qy, 0))
           : Math.max(qx, qy);
-      expect(Math.abs(distance), `from (${start.x}, ${start.y})`).toBeCloseTo(1, 5);
+      expect(Math.abs(distance), `from (${start.x}, ${start.y})`).toBeCloseTo(REST, 5);
     }
   });
 });

@@ -24,6 +24,7 @@
   --shadow: 62 46 30;
 
   --r: 14px;
+  --wall: 3px;
   color-scheme: light;
 }
 
@@ -130,17 +131,21 @@ h1 {
   will-change: transform;
 }
 
-/* The walls. A border on a box inset by half its own width straddles the
-   square, and the mitred corners turn it for free. One flat colour all the way
-   round --- a lit and a shaded pair made it a bevelled frame lying on the
-   carpet rather than four walls standing up off it. What says they stand up is
-   the shadow: outward onto the carpet, inward onto the floor, both cast from
-   the same light as everything else. */
+/* The walls. They stand entirely outside the box element, whose edge is the
+   inner face --- so a settled ball's surface touches the wall it is drawn
+   against, because --wall is the same number the rules settle it against. A
+   border on a box inset by its own width lands exactly there, and the mitred
+   corners turn it for free.
+
+   One flat colour all the way round: a lit and a shaded pair made it a bevelled
+   frame lying on the carpet rather than four walls standing up off it. What
+   says they stand up is the shadow, outward onto the carpet and inward onto the
+   floor, both cast from the same light as everything else. */
 .box::before {
   content: "";
   position: absolute;
-  inset: calc(var(--r) * -0.11);
-  border: calc(var(--r) * 0.22) solid var(--card-wall);
+  inset: calc(var(--wall) * -1);
+  border: var(--wall) solid var(--card-wall);
   box-shadow:
     calc(var(--r) * 0.09) calc(var(--r) * 0.24) calc(var(--r) * 0.5) rgb(var(--shadow) / 30%),
     inset calc(var(--r) * 0.11) calc(var(--r) * 0.2) calc(var(--r) * 0.42) rgb(var(--shadow) / 30%);

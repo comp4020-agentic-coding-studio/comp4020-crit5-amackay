@@ -1,5 +1,5 @@
 import { worldToScreen, type ViewTransform } from "../game/view";
-import { BALL_RADIUS, type Ball, type Side } from "../game/types";
+import { BALL_RADIUS, WALL_WIDTH, type Ball, type Side } from "../game/types";
 
 // Rendering writes and never reads back. Nothing here measures an element, so a
 // rule bug and a rendering bug cannot be confused for one another.
@@ -41,11 +41,14 @@ export function render(
 ): void {
   reconcile(surface, balls.length);
 
-  // One ball radius in screen pixels, published to CSS so shadow and rim
+  // One ball radius in screen pixels, published to CSS so shadow and wall
   // widths are stated in radii and survive the level-change zoom. A shadow
   // sized in em would be pinned to the root font size and would come adrift
   // from the ball it belongs to the moment the view rescaled.
   surface.container.style.setProperty("--r", `${BALL_RADIUS * view.scale}px`);
+  // The wall is simulated, not decorative, so its width comes from the rules
+  // rather than from the stylesheet. Drawn and settled against the same number.
+  surface.container.style.setProperty("--wall", `${WALL_WIDTH * view.scale}px`);
 
   const diameter = 2 * BALL_RADIUS * view.scale;
   for (let i = 0; i < balls.length; i++) {
@@ -59,6 +62,9 @@ export function render(
     element.style.zIndex = i === held ? "2" : "1";
   }
 
+  // The element is the box's interior exactly: its edge is the wall's inner
+  // face, which is where a settled ball's surface comes to rest. CSS hangs the
+  // wall slab off the outside of it.
   const boxPx = side * view.scale;
   const corner = worldToScreen(view, { x: -side / 2, y: side / 2 });
   surface.box.style.width = `${boxPx}px`;

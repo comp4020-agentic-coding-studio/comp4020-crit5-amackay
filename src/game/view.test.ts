@@ -7,6 +7,7 @@ import {
   viewBounds,
   worldToScreen,
 } from "./view";
+import { BALL_RADIUS, WALL_WIDTH } from "./types";
 
 describe("fitView", () => {
   it("puts the world origin at the centre of the surface", () => {
@@ -27,9 +28,11 @@ describe("fitView", () => {
     for (const side of [2, 6, 8, 14]) {
       const view = fitView(side, 800, 600);
       const bounds = viewBounds(view, 800, 600)!;
-      // A ball shed over a wall rests with its centre one radius past the line.
-      expect(bounds.y, `side ${side}`).toBeGreaterThanOrEqual(side / 2 + 1);
-      expect(bounds.x, `side ${side}`).toBeGreaterThanOrEqual(side / 2 + 1);
+      // A ball shed over a wall rests against the wall's outer face, so its
+      // centre is a whole wall plus a radius past the box's inner face.
+      const shed = side / 2 + WALL_WIDTH + BALL_RADIUS;
+      expect(bounds.y, `side ${side}`).toBeGreaterThanOrEqual(shed);
+      expect(bounds.x, `side ${side}`).toBeGreaterThanOrEqual(shed);
     }
   });
 

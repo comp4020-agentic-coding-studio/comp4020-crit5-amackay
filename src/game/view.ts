@@ -20,10 +20,15 @@ export interface ViewTransform {
 export const FALLBACK_SCALE = 10;
 
 /**
- * Clear space kept outside the box on the shorter screen axis, in ball radii.
- * A ball pushed over a wall rests one radius past the line and occupies one
- * more, so anything under 2 would let the box expel a ball off screen. The
- * extra half is so a ball out there does not sit flush against the edge.
+ * Clear space kept outside the box on the shorter screen axis, in ball radii,
+ * measured from the box's inner face.
+ *
+ * A ball pushed over a wall rests with its surface against the wall's outer
+ * face, so its centre is `WALL_WIDTH + 1` out and it occupies one radius more
+ * again: anything under `WALL_WIDTH + 2` would let the box expel a ball off
+ * screen. At WALL_WIDTH = 0.22 that is 2.22, so this leaves 0.28 radii of slack
+ * --- enough that a ball out there does not sit flush against the edge, and not
+ * enough to survive the wall growing past half a radius.
  */
 export const VIEW_MARGIN = 2.5;
 

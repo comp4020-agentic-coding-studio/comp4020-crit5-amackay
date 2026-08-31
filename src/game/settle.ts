@@ -1,4 +1,4 @@
-import { BALL_RADIUS, type Ball, type Side } from "./types";
+import { BALL_RADIUS, WALL_WIDTH, type Ball, type Side } from "./types";
 
 // Quasi-static settling. Per pass: compute every force, sum per ball, then move
 // every ball. Nothing moves mid-pass, so a ball with several contacts gets one
@@ -7,8 +7,14 @@ import { BALL_RADIUS, type Ball, type Side } from "./types";
 
 const CONTACT_DISTANCE = 2 * BALL_RADIUS;
 
-/** Ramp width on either side of a wall line, per IDEA.md. */
-const RAMP = BALL_RADIUS;
+/**
+ * How far a ball comes to rest from the wall's centreline: its own radius, plus
+ * the half-thickness of the wall it is up against. Its surface then touches the
+ * wall's face, inside or outside, and the incline runs exactly one radius beyond
+ * each face --- which is IDEA.md's "the incline width on either side is 1", now
+ * that the wall has faces rather than being a line.
+ */
+const REACH = BALL_RADIUS + WALL_WIDTH / 2;
 
 /** Contact distance for the fingertip: it has to actually be on a ball. */
 const PUSHER_REACH = BALL_RADIUS;
@@ -191,32 +197,39 @@ function accumulate(balls: readonly Ball[], opts: SettleOptions): Accumulation {
     }
   }
 
-  // Ball against box. The boundary is a raised rim following the square's
-  // outline — corners included — and the terrain falls away to nothing a radius
-  // either side of it. A ball on the rim rolls off it downhill, inward or
-  // outward, which is the hill the player can push a ball over.
+  // Ball against box. The wall is a slab standing outside the scored square,
+  // from side/2 to side/2 + WALL_WIDTH, and it is a ridge rather than a fence:
+  // the terrain falls away a radius beyond each of its faces, so a ball rolls
+  // off it downhill, inward or outward. That is the hill the player can push a
+  // ball over.
   //
   // Treating the four walls as four independent lines is what this replaces,
   // and it was wrong in a way only the corners showed: each line ran to
   // infinity, so a ball far past a corner still felt a wall it was nowhere
   // near.
+  //
+  // Two questions, two squares. Containment asks whether the ball is inside the
+  // room the box encloses, so it is measured against the inner face. Force asks
+  // which way off the ridge the ball is, so it is measured against the ridge's
+  // own centreline, half a wall further out.
   const half = opts.side / 2;
+  const mid = half + WALL_WIDTH / 2;
   for (let i = 0; i < n; i++) {
     if (i === lifted) continue;
-    const rim = rimAt(balls[i]!, half);
 
     // Containment is a separate question from force: the box does not hold a
-    // ball whose centre is within a radius of the boundary or beyond it,
-    // however the rim happens to be pushing, and compacting must never call
+    // ball whose centre is within a radius of the inner face or beyond it,
+    // however the wall happens to be pushing, and compacting must never call
     // that a fit.
-    const overhang = rim.distance + BALL_RADIUS;
+    const overhang = rimAt(balls[i]!, half).distance + BALL_RADIUS;
     if (overhang > residual) residual = overhang;
 
-    if (Math.abs(rim.distance) >= RAMP) continue;
-    const magnitude = RAMP - Math.abs(rim.distance);
-    // Downhill is away from the rim: further out if already out, further in if
-    // in. Balanced exactly on it, a ball falls inward — IDEA.md asks for an
-    // exact alignment to be broken, and inward is the kinder of the two.
+    const rim = rimAt(balls[i]!, mid);
+    if (Math.abs(rim.distance) >= REACH) continue;
+    const magnitude = REACH - Math.abs(rim.distance);
+    // Downhill is away from the ridge: further out if already out, further in
+    // if in. Balanced exactly on the crest, a ball falls inward — IDEA.md asks
+    // for an exact alignment to be broken, and inward is the kinder of the two.
     const downhill = rim.distance > DEGENERATE ? 1 : -1;
     fx[i]! += downhill * rim.nx * magnitude;
     fy[i]! += downhill * rim.ny * magnitude;
