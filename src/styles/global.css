@@ -13,11 +13,12 @@
   --carpet-lit: #b6b9a8;
   --carpet-deep: #7f8371;
 
-  --card-lit: #d2ba97;
-  --card: #c4a980;
-  --card-deep: #b0946c;
-  --card-rim-lit: #dcc5a4;
-  --card-rim-deep: #a68a63;
+  /* The floor sits in the shade of its own walls, so it reads a clear step
+     darker than the wall tops that are catching the light. */
+  --card-lit: #bfa47d;
+  --card: #b09471;
+  --card-deep: #9c8360;
+  --card-wall: #dfc9a9;
 
   --ink: #3d3f34;
   --shadow: 62 46 30;
@@ -126,21 +127,21 @@ h1 {
   left: 0;
   background:
     radial-gradient(160% 160% at 34% 24%, var(--card-lit) 0%, var(--card) 66%, var(--card-deep) 100%);
-  box-shadow:
-    calc(var(--r) * 0.1) calc(var(--r) * 0.28) calc(var(--r) * 0.7) rgb(var(--shadow) / 26%),
-    inset 0 0 calc(var(--r) * 0.8) rgb(var(--shadow) / 14%);
   will-change: transform;
 }
 
-/* The rim. A border on a box inset by half its own width straddles the square,
-   and mitred corners turn the bevel for free --- lit on the two sides facing
-   the light, shadowed on the two facing away --- so it reads as something a
-   ball goes over rather than a line it stops at. */
+/* The walls. A border on a box inset by half its own width straddles the
+   square, and the mitred corners turn it for free. One flat colour all the way
+   round --- a lit and a shaded pair made it a bevelled frame lying on the
+   carpet rather than four walls standing up off it. What says they stand up is
+   the shadow: outward onto the carpet, inward onto the floor, both cast from
+   the same light as everything else. */
 .box::before {
   content: "";
   position: absolute;
   inset: calc(var(--r) * -0.11);
-  border: calc(var(--r) * 0.22) solid;
-  border-color:
-    var(--card-rim-lit) var(--card-rim-deep) var(--card-rim-deep) var(--card-rim-lit);
+  border: calc(var(--r) * 0.22) solid var(--card-wall);
+  box-shadow:
+    calc(var(--r) * 0.09) calc(var(--r) * 0.24) calc(var(--r) * 0.5) rgb(var(--shadow) / 30%),
+    inset calc(var(--r) * 0.11) calc(var(--r) * 0.2) calc(var(--r) * 0.42) rgb(var(--shadow) / 30%);
 }
