@@ -66,10 +66,6 @@ export function renderLevels(
     anchor.className = "level";
     anchor.append(makeSpan(doc, "bar"));
     for (let i = 0; i < 3; i++) anchor.append(makeSpan(doc, "notch"));
-    anchor.addEventListener("click", () => {
-      const n = Number(anchor.dataset.n);
-      if (n) handlers.onSelect(n);
-    });
     nav.append(anchor);
   }
   const existing = [...nav.querySelectorAll<HTMLElement>("a.level")];
@@ -79,6 +75,9 @@ export function renderLevels(
   rows.forEach((row, i) => {
     const anchor = live[i]!;
     anchor.dataset.n = String(row.n);
+    // Set fresh every render rather than added once, so an anchor that arrived
+    // server-rendered is wired too and no listener ever stacks up.
+    anchor.onclick = () => handlers.onSelect(row.n);
     if (row.bestFraction == null) anchor.style.removeProperty("--bar");
     else anchor.style.setProperty("--bar", `${row.bestFraction}`);
     anchor.classList.toggle("is-current", row.current);

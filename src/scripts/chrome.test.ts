@@ -34,6 +34,15 @@ describe("createChrome", () => {
     expect(document.querySelectorAll("#levels").length).toBe(1);
     expect(levels.querySelectorAll("a.level").length).toBe(1);
   });
+
+  it("wires a click onto the server-rendered row, not just fresh ones", () => {
+    document.body.innerHTML = `<nav id="levels"><a class="level" data-n="1"></a></nav>`;
+    const { levels } = createChrome(document);
+    const onSelect = vi.fn();
+    renderLevels(levels, histogramRows(playTo(3)), { onSelect });
+    levels.querySelector<HTMLElement>("a.level")!.click();
+    expect(onSelect).toHaveBeenCalledWith(1);
+  });
 });
 
 describe("renderLevels", () => {
