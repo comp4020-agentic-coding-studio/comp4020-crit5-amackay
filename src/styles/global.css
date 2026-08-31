@@ -131,15 +131,10 @@ h1 {
   background:
     radial-gradient(160% 160% at 34% 24%, var(--card-lit) 0%, var(--card) 66%, var(--card-deep) 100%);
   will-change: transform;
-  /* The only motion this ease still covers is a level change's own jump; a
-     drag and a click-driven compact/de-compact both set width/height/
-     transform every frame while they run, and transitioning a value that is
-     already mid-change would make the box lag behind whatever is driving it. */
-  transition: width 0.15s ease-out, height 0.15s ease-out, transform 0.15s ease-out;
-}
-
-.box.animating {
-  transition: none;
+  /* No transition: every motion the box makes --- a drag, a click-driven
+     compact, and now a level change's zoom --- is written every frame by
+     render.ts, and easing a value that is already changing every frame only
+     makes the box lag behind whatever is driving it. */
 }
 
 /* The walls. They stand entirely outside the box element, whose edge is the

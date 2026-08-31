@@ -93,6 +93,26 @@ const MIN_SIDE = 2 * BALL_RADIUS;
 const CLICK_THRESHOLD_PX = 4;
 
 /**
+ * How many frames a level-change zoom takes. A fixed count, not a duration:
+ * a frame is a tick here (see FRAME_RATE), so the zoom advances one step per
+ * frame like the fall and the close, and the hand-off from the zoom to the
+ * new ball's drop lands on a tick boundary rather than at a wall-clock time.
+ * Eighteen is ~0.3s at 60fps --- long enough to read as the camera pulling
+ * back, short enough not to be a wait.
+ */
+const ZOOM_TICKS = 18;
+
+/** Ease in and out, so the zoom starts and stops gently. Pure. */
+function smoothstep(t: number): number {
+  const x = Math.min(1, Math.max(0, t));
+  return x * x * (3 - 2 * x);
+}
+
+function lerp(from: number, to: number, k: number): number {
+  return from + (to - from) * k;
+}
+
+/**
  * What the screen says once the core sequence is done. A fragment, not a
  * sentence, and clear of the instruction words the spec forbids --- the whole
  * of the game's visible-prose budget is twenty words and the histogram spends
@@ -175,6 +195,12 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
    * slot seen twice, and never both at once.
    */
   let falling: { index: number; height: number } | null = null;
+  /**
+   * A level-change zoom in progress: the scale it started from and how many
+   * frames it has run. The target is always the current level's fit, recomputed
+   * every frame, so a mid-zoom window resize is handled for free.
+   */
+  let zooming: { fromScale: number; tick: number } | null = null;
   let view: ViewTransform = fitView(openSide(session.level), 0, 0);
 
   function measureSurface(): { width: number; height: number } {
@@ -201,9 +227,25 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
    */
   function refreshView(): void {
     const { width, height } = measureSurface();
-    view = fitView(openSide(session.level), width, height);
+    const target = fitView(openSide(session.level), width, height);
+    // Only the scale is eased; the origin is just the surface centre, so it is
+    // always taken live. maxSide and bounds jump straight to the new level ---
+    // safe because the arrangement is at rest through a zoom, and a looser
+    // early bound never clamps anything.
+    view = zooming
+      ? {
+          originX: target.originX,
+          originY: target.originY,
+          scale: lerp(zooming.fromScale, target.scale, smoothstep(zooming.tick / ZOOM_TICKS)),
+        }
+      : target;
     bounds = viewBounds(view, width, height);
     maxSide = openSide(session.level) + 2 * VIEW_MARGIN - 2 * WALL_WIDTH;
+  }
+
+  /** Start easing the view to the current level's fit. The level has already moved. */
+  function beginZoom(): void {
+    zooming = { fromScale: view.scale, tick: 0 };
   }
 
   function draw(): void {
@@ -229,14 +271,18 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
 
   /** Jump to a level already reached, restoring its best arrangement. */
   function goToLevel(n: number): void {
+    const before = session.level;
     session = enterLevel(session, n);
+    if (session.level !== before) beginZoom();
     refreshView();
     draw();
   }
 
   /** Move past a beaten frontier level: one more ball, a bigger box. */
   function advanceLevel(): void {
+    const before = session.level;
     session = advance(session);
+    if (session.level !== before) beginZoom();
     refreshView();
     draw();
   }
@@ -248,6 +294,12 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   }
 
   function step(): void {
+    // The zoom is a view event, not a settle, so it advances once per frame
+    // rather than once per pass.
+    if (zooming) {
+      zooming.tick++;
+      if (zooming.tick >= ZOOM_TICKS) zooming = null;
+    }
     refreshView();
     for (let pass = 0; pass < PASSES_PER_STEP; pass++) {
       // The fall is advanced once per pass rather than once per frame, so the
@@ -294,7 +346,6 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
           if (fitsNow(closing.finalBalls, closing.target)) {
             session = record(session, closing.target, closing.finalBalls);
           }
-          surface.box.classList.remove("animating");
           closing = null;
         }
         continue;
@@ -355,11 +406,6 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
 
   function handleDown(x: number, y: number): void {
     resize = { downScreen: { x, y }, moved: false };
-    // Off for the duration of the hold: a drag sets the side every move, and
-    // transitioning a value that changes every frame would lag the box behind
-    // the finger instead of tracking it. A click's own compact/de-compact
-    // keeps it off afterwards too --- see handleUp.
-    surface.box.classList.add("animating");
   }
 
   function handleMove(x: number, y: number): void {
@@ -378,16 +424,10 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
 
   function handleUp(): void {
     if (!resize) return;
-    if (resize.moved) {
-      // A drag: the side was already applied live, move by move, so the
-      // transition can come straight back on.
-      surface.box.classList.remove("animating");
-    } else {
+    if (!resize.moved) {
       // A click: work out exactly where compacting (or de-compacting, if the
       // balls it contains do not currently fit) lands, then let step() play
-      // that out at the same MAX_STEP everything else obeys. "animating"
-      // stays on the whole time it runs, and is turned off in step() once it
-      // finishes.
+      // that out at the same MAX_STEP everything else obeys.
       const result = compact(session.balls, session.side);
       closing = { target: result.side, finalBalls: result.balls, contained: result.contained };
     }

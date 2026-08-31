@@ -4,7 +4,7 @@ import { createGame, type Game } from "./mount";
 import { advance, bestAt, newSession, openSide, record } from "../game/session";
 import { optimum } from "../game/optima";
 import { fitsNow } from "../game/compact";
-import { VIEW_MARGIN, worldToScreen } from "../game/view";
+import { fitView, VIEW_MARGIN, worldToScreen } from "../game/view";
 import { WALL_WIDTH, type Ball } from "../game/types";
 
 // jsdom has no layout, so the surface is given its size explicitly rather than
@@ -453,6 +453,40 @@ describe("level select and advancing", () => {
     document.querySelectorAll<HTMLElement>("#levels a.level")[0]!.click();
     expect(game.session.level).toBe(1);
     game.destroy();
+  });
+
+  it("eases the view to the new level's fit over several frames, not in one jump", () => {
+    const game = beatenAt(1);
+    const startScale = game.view.scale;
+    const target = fitView(openSide(2), SIZE.width, SIZE.height).scale;
+    expect(target).not.toBeCloseTo(startScale, 2);
+
+    document.querySelector<HTMLButtonElement>("button.advance")!.click();
+    expect(game.view.scale).toBeCloseTo(startScale, 6); // nothing has moved yet
+
+    game.step();
+    const afterOne = game.view.scale;
+    expect(afterOne).not.toBeCloseTo(startScale, 6);
+    expect(afterOne).not.toBeCloseTo(target, 6); // still mid-zoom
+
+    settleFrames(game, 40);
+    expect(game.view.scale).toBeCloseTo(target, 6);
+    game.destroy();
+  });
+
+  it("runs the zoom the same way every time", () => {
+    const play = () => {
+      const game = beatenAt(1);
+      document.querySelector<HTMLButtonElement>("button.advance")!.click();
+      const scales: number[] = [];
+      for (let i = 0; i < 20; i++) {
+        game.step();
+        scales.push(game.view.scale);
+      }
+      game.destroy();
+      return scales;
+    };
+    expect(play()).toEqual(play());
   });
 
   it("only offers the button at a beaten frontier level", () => {
