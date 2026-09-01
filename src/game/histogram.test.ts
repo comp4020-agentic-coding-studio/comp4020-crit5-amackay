@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { BAR_MAX, goalFor, histogramRows } from "./histogram";
-import { optimum } from "./optima";
+import { BAR_MAX, histogramRows } from "./histogram";
+import { levels } from "./optima";
 import { thresholds } from "./score";
-import { beat, play, playTo } from "./progress.test-helper";
-import { advance, enterLevel, newSession, record, type Session } from "./session";
+import { beat, playTo } from "./progress.test-helper";
+import { advance, enterLevel, newSession, record } from "./session";
 import { CORE_SEQUENCE, MAX_LEVEL } from "./types";
 
 describe("histogramRows", () => {
@@ -70,54 +70,16 @@ describe("histogramRows", () => {
     const session = beat(playTo(CORE_SEQUENCE));
     expect(histogramRows(session).every((r) => r.notches.three > 0)).toBe(true);
   });
-});
 
-describe("the goal", () => {
-  it("names the tightest threshold the box has not reached yet", () => {
-    const t = thresholds(3);
-    expect(goalFor(3, t.one + 1, true)).toBe(t.one);
-    expect(goalFor(3, t.one, true)).toBe(t.two);
-    expect(goalFor(3, t.two, true)).toBe(t.three);
-  });
-
-  it("is gone once the box is inside the last of them", () => {
-    expect(goalFor(3, thresholds(3).three, true)).toBeNull();
-    expect(goalFor(3, optimum(3), true)).toBeNull();
-  });
-
-  it("aims at the first star while the arrangement does not fit", () => {
-    // A level opens under every threshold with its circles overlapping. On
-    // size alone that would read as nothing left to aim for.
-    expect(goalFor(3, optimum(3), false)).toBe(thresholds(3).one);
-  });
-
-  it("is read from the box on screen, not from the recorded best", () => {
-    // A re-entered level one is back at its opening size and has to be beaten
-    // again, so a goal taken from `bests` would call it finished.
-    const back = enterLevel(playTo(4), 1);
-    const row = histogramRows(back).find((r) => r.current)!;
-    expect(row.n).toBe(1);
-    expect(row.complete).toBe(true);
-    expect(row.goal).toBeCloseTo(thresholds(1).one / BAR_MAX, 12);
-  });
-
-  it("is set on the row being played and on no other", () => {
-    const rows = histogramRows(playTo(4));
-    expect(rows.filter((r) => r.goal != null).map((r) => r.n)).toEqual([4]);
-  });
-
-  it("reports the arrangement not fitting at a level's opening", () => {
-    // The box carried over from the level before is usually smaller than this
-    // level's first threshold, so the gauge would otherwise read as already
-    // past it while the circles are still overlapping.
-    const opened = playTo(4);
-    const row = histogramRows(opened).find((r) => r.current)!;
-    expect(row.fits).toBe(false);
-    expect(row.nowFraction!).toBeLessThan(row.goal!);
-  });
-
-  it("reports it fitting once the level has been played", () => {
-    const row = histogramRows(play(playTo(4))).find((r) => r.current)!;
-    expect(row.fits).toBe(true);
+  it("keeps every bar and every star inside the one span all the rows share", () => {
+    // One scale for the whole stack is what makes the rows comparable, so the
+    // span has to be the widest thing any of them can draw --- which is the
+    // loosest one-star size in the game, not the naive grid at the last level.
+    for (const n of levels()) {
+      const row = histogramRows(newSession(n)).find((r) => r.n === n)!;
+      expect(row.notches.one, `level ${n}`).toBeLessThanOrEqual(1);
+      expect(row.notches.three, `level ${n}`).toBeGreaterThan(0);
+    }
+    expect(Math.max(...levels().map((n) => thresholds(n).one))).toBeCloseTo(BAR_MAX, 12);
   });
 });

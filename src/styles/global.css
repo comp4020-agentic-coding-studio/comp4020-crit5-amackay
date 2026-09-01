@@ -273,18 +273,60 @@ h1 {
   gap: 0.5rem;
 }
 
+/* A row: its level's number in a fixed gutter, then a track carrying the bar
+   and the three star sizes. A gutter rather than an overlay, because at one
+   shared scale the low levels' stars sit 10-20% along the track, which is
+   exactly where a number written into the track would be. */
 .level {
   position: relative;
   display: block;
   flex: none;
-  width: min(20rem, 78vw);
+  width: min(22rem, 84vw);
   /* A row is a touch target before it is a bar, and twenty of them at this
      height is taller than a phone --- which is what makes the list scroll
      where it needs to rather than carrying a scroll bar for show. */
   height: 40px;
+  padding: 0;
+  border: none;
   border-radius: 4px;
   background: rgb(255 255 255 / 17%);
+  color: #fff;
+  font: inherit;
   cursor: pointer;
+  --index-w: 2.6rem;
+}
+
+.level .index {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--index-w);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.level:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* The end of the game: a row's worth of space under the last level, saying so
+   and nothing else. */
+.fin {
+  flex: none;
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  text-transform: uppercase;
+  color: #fff;
+  opacity: 0.6;
 }
 
 /* The size bar. Its left edge is the viewport's centre, which is the box's
@@ -476,21 +518,36 @@ h1 {
 
 .level .bar {
   position: absolute;
-  left: 0;
+  left: var(--index-w);
   top: 0;
   height: 100%;
-  width: calc(var(--bar, 0) * 100%);
-  border-radius: inherit;
+  width: calc(var(--bar, 0) * (100% - var(--index-w)));
+  border-radius: 0 4px 4px 0;
   background: var(--card-wall);
 }
 
+/* The three star sizes, drawn as the stars they are so a row reads the same way
+   the game screen's size bar does.
+
+   A star is won when the recorded best is at least as tight as it, which is
+   exactly when the bar ends before it --- so an unwon star always sits on the
+   bar and a won one always sits off it, on the empty track. Hence the two
+   colours rather than two opacities: each is the one that reads against the
+   surface its own state puts it on. */
 .level .notch {
   position: absolute;
-  top: -1px;
-  bottom: -1px;
-  left: calc(var(--at) * 100%);
-  width: 1px;
-  background: rgb(255 255 255 / 40%);
+  top: 50%;
+  left: calc(var(--index-w) + var(--at) * (100% - var(--index-w)));
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  background: rgb(var(--shadow) / 55%);
+  clip-path: var(--star-shape);
+}
+
+.level .notch.is-won {
+  background: #fff;
+  opacity: 0.9;
 }
 
 /* The goal: the tightest threshold the box has not reached yet, picked out

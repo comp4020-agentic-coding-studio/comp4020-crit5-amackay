@@ -66,7 +66,7 @@ describe("nothing on screen tells the player anything", () => {
       game.step();
       assertQuiet(`level ${n}`);
       expect(
-        document.querySelectorAll("#levels a.level"),
+        document.querySelectorAll("#levels button.level"),
         `level ${n}: nav rows`,
       ).toHaveLength(MAX_LEVEL);
       game.destroy();
@@ -101,7 +101,7 @@ describe("nothing on screen tells the player anything", () => {
   it("lets the histogram carry the player back to an earlier level", () => {
     const game = createGame(container, { session: sessionAt(5), size: SIZE });
     game.step();
-    document.querySelectorAll<HTMLElement>("#levels a.level")[2]!.click();
+    document.querySelectorAll<HTMLElement>("#levels button.level")[2]!.click();
     expect(game.session.level).toBe(3);
     game.destroy();
   });

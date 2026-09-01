@@ -1,10 +1,13 @@
 import type { HistogramRow } from "../game/histogram";
 
-// The furniture around the stage: the level-select screen, the one row that
-// stays on the game screen, and the buttons. Like render.ts, this writes and
-// never reads back, and it writes no text anywhere except the finish slot ---
-// every name a screen reader needs is an aria-label, which is an attribute and
-// so never appears on screen.
+// The furniture around the stage: the level-select screen, the size bar, the
+// star display and the buttons. Like render.ts this writes and never reads
+// back, with one exception --- flyStar, which has to measure both ends of the
+// trip it animates.
+//
+// The only text it writes is a level's number on its row and FIN under the
+// last of them. Every other name a screen reader needs is an aria-label, which
+// is an attribute and so never appears on screen.
 
 export interface Chrome {
   /** The level-select screen: the game's title and every level in it. */
@@ -102,34 +105,56 @@ export interface LevelHandlers {
   onSelect(n: number): void;
 }
 
-/** Bring the screen's rows into line with the histogram: one <a> per row. */
+/** What the last row says once the last level has been beaten. */
+const FIN = "FIN";
+
+/**
+ * Bring the screen's rows into line with the histogram: one button per row.
+ *
+ * Buttons rather than anchors. These change the game's state in place, they do
+ * not navigate, and an anchor with no href is focusable by nothing and
+ * announced as no kind of control at all --- which is what twenty of them were.
+ * A locked level is a disabled button, which says so on its own.
+ */
 export function renderLevels(
   nav: HTMLElement,
   rows: readonly HistogramRow[],
   handlers: LevelHandlers,
+  finished = false,
 ): void {
   const doc = nav.ownerDocument;
 
-  for (let have = nav.querySelectorAll("a.level").length; have < rows.length; have++) {
-    nav.append(makeRow(doc, "a"));
+  for (let have = nav.querySelectorAll("button.level").length; have < rows.length; have++) {
+    nav.append(makeRow(doc));
   }
-  const existing = [...nav.querySelectorAll<HTMLElement>("a.level")];
+  const existing = [...nav.querySelectorAll<HTMLElement>("button.level")];
   for (const extra of existing.slice(rows.length)) extra.remove();
 
-  const live = nav.querySelectorAll<HTMLElement>("a.level");
+  const live = nav.querySelectorAll<HTMLButtonElement>("button.level");
   rows.forEach((row, i) => {
-    const anchor = live[i]!;
-    fillRow(anchor, row);
-    anchor.setAttribute(
+    const button = live[i]!;
+    fillRow(button, row);
+    button.disabled = row.locked;
+    button.setAttribute(
       "aria-label",
       row.locked ? `Level ${row.n}, locked` : `Level ${row.n}`,
     );
-    // Set fresh every render rather than added once, so an anchor that arrived
-    // server-rendered is wired too and no listener ever stacks up. A locked
-    // level takes no click: it is shown so the game's length is visible, not
-    // so it can be jumped to.
-    anchor.onclick = row.locked ? null : () => handlers.onSelect(row.n);
+    // Set fresh every render rather than added once, so a button that arrived
+    // server-rendered is wired too and no listener ever stacks up.
+    button.onclick = row.locked ? null : () => handlers.onSelect(row.n);
   });
+
+  // The end of the game, which is a row rather than a screen of its own: the
+  // stack of twenty results is the thing worth looking at, and this is the line
+  // under it.
+  let fin = nav.querySelector<HTMLElement>(".fin");
+  if (finished && !fin) {
+    fin = makeSpan(doc, "fin");
+    fin.textContent = FIN;
+    nav.append(fin);
+  } else if (!finished && fin) {
+    fin.remove();
+  }
 }
 
 export interface Gauge {
@@ -177,10 +202,11 @@ export function renderGauge(el: HTMLElement, tie: HTMLElement, g: Gauge): void {
   tie.style.setProperty("--length", `${Math.max(0, g.boxTop - g.barBottom)}px`);
 }
 
-function makeRow(doc: Document, tag: "a"): HTMLElement {
-  const row = doc.createElement(tag);
+function makeRow(doc: Document): HTMLButtonElement {
+  const row = doc.createElement("button");
+  row.type = "button";
   row.className = "level";
-  row.append(makeSpan(doc, "bar"));
+  row.append(makeSpan(doc, "index"), makeSpan(doc, "bar"));
   for (let i = 0; i < 3; i++) row.append(makeSpan(doc, "notch"));
   row.append(makeSpan(doc, "lock"));
   return row;
@@ -189,6 +215,8 @@ function makeRow(doc: Document, tag: "a"): HTMLElement {
 /** Everything a level-screen row draws. */
 function fillRow(el: HTMLElement, row: HistogramRow): void {
   el.dataset.n = String(row.n);
+  const index = el.querySelector<HTMLElement>(".index");
+  if (index) index.textContent = String(row.n);
   if (row.bestFraction == null) el.style.removeProperty("--bar");
   else el.style.setProperty("--bar", `${row.bestFraction}`);
   el.classList.toggle("is-current", row.current);
@@ -200,8 +228,9 @@ function fillRow(el: HTMLElement, row: HistogramRow): void {
   const at = [row.notches.three, row.notches.two, row.notches.one];
   notches.forEach((notch, k) => {
     notch.style.setProperty("--at", `${at[k]}`);
-    // The goal is one of these three, so it is marked rather than drawn twice.
-    notch.classList.toggle("is-goal", row.goal != null && at[k] === row.goal);
+    // Solid once the recorded best is inside it, which makes a row's stars the
+    // same reading as the display's: filled means won.
+    notch.classList.toggle("is-won", row.bestFraction != null && row.bestFraction <= at[k]!);
   });
 }
 

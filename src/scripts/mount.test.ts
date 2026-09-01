@@ -499,8 +499,8 @@ describe("level select and advancing", () => {
   it("shows one nav row per level in the game, locking the ones ahead", () => {
     const game = createGame(container, { session: newSession(4), size: SIZE });
     game.step();
-    expect(document.querySelectorAll("#levels a.level")).toHaveLength(MAX_LEVEL);
-    expect(document.querySelectorAll("#levels a.level.is-locked")).toHaveLength(
+    expect(document.querySelectorAll("#levels button.level")).toHaveLength(MAX_LEVEL);
+    expect(document.querySelectorAll("#levels button.level.is-locked")).toHaveLength(
       MAX_LEVEL - 4,
     );
     game.destroy();
@@ -529,7 +529,7 @@ describe("level select and advancing", () => {
     const game = beatenAt(3);
     game.step();
     document.querySelector<HTMLButtonElement>("button.pick")!.click();
-    document.querySelectorAll<HTMLElement>("#levels a.level")[1]!.click();
+    document.querySelectorAll<HTMLElement>("#levels button.level")[1]!.click();
     expect(game.session.level).toBe(2);
     expect(document.querySelector<HTMLElement>("#screen")!.hidden).toBe(true);
     game.destroy();
@@ -555,7 +555,7 @@ describe("level select and advancing", () => {
     expect(game.session.level).toBe(2);
     expect(game.session.balls).toHaveLength(2);
 
-    document.querySelectorAll<HTMLElement>("#levels a.level")[0]!.click();
+    document.querySelectorAll<HTMLElement>("#levels button.level")[0]!.click();
     expect(game.session.level).toBe(1);
     game.destroy();
   });
@@ -638,14 +638,14 @@ describe("level select and advancing", () => {
 
     // Back to level 2 from the nav: already beaten, so the way onward is still
     // offered --- picking an earlier level up is not starting it again.
-    document.querySelectorAll<HTMLElement>("#levels a.level")[1]!.click();
+    document.querySelectorAll<HTMLElement>("#levels button.level")[1]!.click();
     expect(won.session.level).toBe(2);
     expect(button().hidden).toBe(false);
 
     // Level one is the exception: it hands back the opening state, so it has
     // to be beaten again. This is what lets the device be handed to someone
     // else without the save being thrown away.
-    document.querySelectorAll<HTMLElement>("#levels a.level")[0]!.click();
+    document.querySelectorAll<HTMLElement>("#levels button.level")[0]!.click();
     expect(won.session.level).toBe(1);
     expect(button().hidden).toBe(true);
     won.destroy();

@@ -4,6 +4,7 @@ import { settleOnce } from "../game/settle";
 import { compact, fitsNow } from "../game/compact";
 import {
   advance,
+  bestAt,
   enterLevel,
   levelComplete,
   newSession,
@@ -322,7 +323,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
 
   function draw(): void {
     render(surface, session.balls, session.side, view, raisedBall());
-    renderLevels(chrome.levels, histogramRows(session), { onSelect: goToLevel });
+    renderLevels(chrome.levels, histogramRows(session), { onSelect: goToLevel }, finished());
     const fits = fitsNow(session.balls, session.side);
     const t = thresholds(session.level);
     renderGauge(chrome.gauge, chrome.tie, {
@@ -361,11 +362,19 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     session = record(session, side, balls);
   }
 
+  /** The whole game is done once the last level has a recorded best. Derived
+   *  rather than stored: there is nothing a flag would know that this does not. */
+  function finished(): boolean {
+    return bestAt(session, MAX_LEVEL) !== undefined;
+  }
+
   /** Open or close the level-select screen. The game underneath keeps running:
    *  the arrangement is at rest by then, so there is no state to suspend. */
-  function setPicking(open: boolean): void {
+  function setPicking(open: boolean, toEnd = false): void {
     picking = open;
     draw();
+    // After the draw that built the rows, or there is nothing to scroll past.
+    if (open && toEnd) chrome.screen.scrollTop = chrome.screen.scrollHeight;
   }
 
   /**
@@ -376,7 +385,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
    * of someone else's saves.
    */
   function canAdvance(): boolean {
-    return session.level < MAX_LEVEL && levelComplete(session);
+    return levelComplete(session);
   }
 
   /** Jump to a level already reached: its best arrangement, at the size that
@@ -604,7 +613,11 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   };
   const onAdvance = (event: Event) => {
     event.preventDefault();
-    if (canAdvance()) advanceLevel();
+    if (!canAdvance()) return;
+    // There is no level twenty-one. The way onward from the last one is the
+    // stack of everything that got you there, scrolled to its own end.
+    if (session.level >= MAX_LEVEL) setPicking(true, true);
+    else advanceLevel();
   };
   const onPick = (event: Event) => {
     event.preventDefault();

@@ -31,20 +31,21 @@ describe("createChrome", () => {
   });
 
   it("adopts elements the page already server-rendered", () => {
-    document.body.innerHTML = `<div id="screen"><nav id="levels"><a class="level"></a></nav></div>
+    document.body.innerHTML = `<div id="screen"><nav id="levels"><button class="level"></button></nav></div>
       <button class="advance"></button>`;
     const { screen, levels } = createChrome(document);
     expect(document.querySelectorAll("#levels").length).toBe(1);
-    expect(levels.querySelectorAll("a.level").length).toBe(1);
+    expect(levels.querySelectorAll("button.level").length).toBe(1);
     expect(levels.parentElement).toBe(screen);
   });
 
   it("wires a click onto the server-rendered row, not just fresh ones", () => {
-    document.body.innerHTML = `<nav id="levels"><a class="level" data-n="1"></a></nav>`;
+    document.body.innerHTML =
+      `<nav id="levels"><button class="level" data-n="1"><span class="index"></span></button></nav>`;
     const { levels } = createChrome(document);
     const onSelect = vi.fn();
     renderLevels(levels, histogramRows(playTo(3)), { onSelect });
-    levels.querySelector<HTMLElement>("a.level")!.click();
+    levels.querySelector<HTMLElement>("button.level")!.click();
     expect(onSelect).toHaveBeenCalledWith(1);
   });
 });
@@ -53,13 +54,13 @@ describe("renderLevels", () => {
   it("shows one row per level in the game", () => {
     const { levels } = createChrome(document);
     renderLevels(levels, histogramRows(playTo(4)), { onSelect: () => {} });
-    expect(levels.querySelectorAll("a.level")).toHaveLength(MAX_LEVEL);
+    expect(levels.querySelectorAll("button.level")).toHaveLength(MAX_LEVEL);
   });
 
   it("marks the rows past the frontier as locked", () => {
     const { levels } = createChrome(document);
     renderLevels(levels, histogramRows(playTo(4)), { onSelect: () => {} });
-    const locked = levels.querySelectorAll<HTMLElement>("a.level.is-locked");
+    const locked = levels.querySelectorAll<HTMLElement>("button.level.is-locked");
     expect([...locked].map((el) => el.dataset.n)).toEqual(
       Array.from({ length: MAX_LEVEL - 4 }, (_, i) => String(i + 5)),
     );
@@ -69,32 +70,59 @@ describe("renderLevels", () => {
     const { levels } = createChrome(document);
     const onSelect = vi.fn();
     renderLevels(levels, histogramRows(playTo(2)), { onSelect });
-    levels.querySelector<HTMLElement>("a.level.is-locked")!.click();
+    levels.querySelector<HTMLElement>("button.level.is-locked")!.click();
     expect(onSelect).not.toHaveBeenCalled();
   });
 
   it("reconciles a row back out of locked when the level is reached", () => {
     const { levels } = createChrome(document);
     renderLevels(levels, histogramRows(playTo(2)), { onSelect: () => {} });
-    const third = () => levels.querySelectorAll<HTMLElement>("a.level")[2]!;
+    const third = () => levels.querySelectorAll<HTMLElement>("button.level")[2]!;
     expect(third().classList.contains("is-locked")).toBe(true);
     renderLevels(levels, histogramRows(playTo(4)), { onSelect: () => {} });
     expect(third().classList.contains("is-locked")).toBe(false);
   });
 
-  it("writes no text into the nav at any level count", () => {
+  it("writes each row's level number and nothing else", () => {
     const { levels } = createChrome(document);
     renderLevels(levels, histogramRows(newSession(20)), { onSelect: () => {} });
-    expect(levels.textContent?.trim()).toBe("");
+    expect([...levels.querySelectorAll(".index")].map((el) => el.textContent)).toEqual(
+      Array.from({ length: MAX_LEVEL }, (_, i) => String(i + 1)),
+    );
+    // A bar's length is a size; which level it belongs to is a different fact,
+    // and the numeral is the only thing on the row that carries it.
+    expect(levels.textContent?.replace(/\d/g, "").trim()).toBe("");
+  });
+
+  it("adds the last row only once the last level has been beaten", () => {
+    const { levels } = createChrome(document);
+    const rows = histogramRows(newSession(20));
+    renderLevels(levels, rows, { onSelect: () => {} }, false);
+    expect(levels.querySelectorAll(".fin")).toHaveLength(0);
+    renderLevels(levels, rows, { onSelect: () => {} }, true);
+    expect(levels.querySelector(".fin")?.textContent).toBe("FIN");
+    // Idempotent: it is written every frame the screen is open.
+    renderLevels(levels, rows, { onSelect: () => {} }, true);
+    expect(levels.querySelectorAll(".fin")).toHaveLength(1);
+    renderLevels(levels, rows, { onSelect: () => {} }, false);
+    expect(levels.querySelectorAll(".fin")).toHaveLength(0);
+  });
+
+  it("disables a locked row rather than leaving it a control that does nothing", () => {
+    const { levels } = createChrome(document);
+    renderLevels(levels, histogramRows(playTo(3)), { onSelect: () => {} });
+    const all = [...levels.querySelectorAll<HTMLButtonElement>("button.level")];
+    expect(all.slice(0, 3).every((b) => !b.disabled)).toBe(true);
+    expect(all.slice(3).every((b) => b.disabled)).toBe(true);
   });
 
   it("takes a row's bar width from the recorded best", () => {
     const { levels } = createChrome(document);
     const session = playTo(3);
     renderLevels(levels, histogramRows(session), { onSelect: () => {} });
-    const first = levels.querySelector<HTMLElement>("a.level")!;
+    const first = levels.querySelector<HTMLElement>("button.level")!;
     expect(first.style.getPropertyValue("--bar")).not.toBe("");
-    const frontier = levels.querySelectorAll<HTMLElement>("a.level")[2]!;
+    const frontier = levels.querySelectorAll<HTMLElement>("button.level")[2]!;
     expect(frontier.style.getPropertyValue("--bar")).toBe("");
   });
 
@@ -102,14 +130,14 @@ describe("renderLevels", () => {
     const { levels } = createChrome(document);
     const onSelect = vi.fn();
     renderLevels(levels, histogramRows(playTo(4)), { onSelect });
-    levels.querySelectorAll<HTMLElement>("a.level")[2]!.click();
+    levels.querySelectorAll<HTMLElement>("button.level")[2]!.click();
     expect(onSelect).toHaveBeenCalledWith(3);
   });
 
   it("marks the current row with aria-current", () => {
     const { levels } = createChrome(document);
     renderLevels(levels, histogramRows(playTo(3)), { onSelect: () => {} });
-    const current = levels.querySelectorAll<HTMLElement>("a.level[aria-current]");
+    const current = levels.querySelectorAll<HTMLElement>("button.level[aria-current]");
     expect(current).toHaveLength(1);
     expect(current[0]!.dataset.n).toBe("3");
   });
