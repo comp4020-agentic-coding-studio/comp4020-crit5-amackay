@@ -5,7 +5,8 @@ import { advance, bestAt, newSession, openSide, record } from "../game/session";
 import { optimum } from "../game/optima";
 import { play, playTo } from "../game/progress.test-helper";
 import { fitsNow } from "../game/compact";
-import { fitView, VIEW_MARGIN, worldToScreen } from "../game/view";
+import { fitView, maxSideIn, worldToScreen } from "../game/view";
+import { par } from "../game/score";
 import { MAX_LEVEL, WALL_WIDTH, type Ball } from "../game/types";
 
 // jsdom has no layout, so the surface is given its size explicitly rather than
@@ -30,11 +31,14 @@ beforeEach(() => {
 const ROOMY_SIDE = 40;
 
 /**
- * The view is fit to the level's own opening side, not the live one (that is
- * the point of this milestone's fix), so a fabricated `side` far past its
- * level's opening size draws a box the view cannot show all of. Fine for
- * these tests: the balls above sit within a couple of radii of the origin,
+ * The view is fit to the level's naive grid, not to the box on screen, so a
+ * fabricated `side` past that draws a box the view cannot show all of. Fine
+ * for these tests: the balls sit within a couple of radii of the origin,
  * nowhere near ROOMY_SIDE's own wall, so nothing here needs it in frame.
+ *
+ * What does bite at these sizes is the play bounds, which are the frame and
+ * not the box: at level one they are 2.33 by 1.5 radii, so a target further
+ * out than that is answering the clamp rather than whatever the test is about.
  */
 function mount(balls?: Ball[], side = ROOMY_SIDE): Game {
   const session = balls ? { ...newSession(balls.length), balls, side } : undefined;
@@ -132,11 +136,11 @@ describe("dragging a ball", () => {
     // arrangement that has to make room, not the drop that gets nudged off
     // target.
     const game = mount([
-      { x: -3, y: 0 },
-      { x: 3, y: 0 },
+      { x: -1.5, y: 0 },
+      { x: 1.5, y: 0 },
     ]);
-    const from = at(game, { x: -3, y: 0 });
-    const onto = at(game, { x: 3, y: 0 });
+    const from = at(game, { x: -1.5, y: 0 });
+    const onto = at(game, { x: 1.5, y: 0 });
 
     game.pointerDown(from.x, from.y);
     game.pointerMove(onto.x, onto.y);
@@ -155,11 +159,11 @@ describe("dragging a ball", () => {
     // pixel. What matters is that the ball is where it was dropped rather than
     // shunted off it.
     const INVISIBLE = 0.01;
-    expect(Math.hypot(a.x - 3, a.y - 0)).toBeLessThan(INVISIBLE);
+    expect(Math.hypot(a.x - 1.5, a.y - 0)).toBeLessThan(INVISIBLE);
     // Which way the neighbour goes is not a fact about the game: dropped
     // exactly on top of it, the separation direction comes from the seeded
     // jitter. That it moved a long way, and that they end up touching, is.
-    expect(Math.hypot(b.x - 3, b.y)).toBeGreaterThan(1.5);
+    expect(Math.hypot(b.x - 1.5, b.y)).toBeGreaterThan(1.5);
     expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(2 - 1e-3);
     game.destroy();
   });
@@ -197,15 +201,17 @@ describe("dragging a ball", () => {
     // every pick-up start with a jump.
     const game = mount([{ x: 0, y: 0 }]);
     const edge = at(game, { x: 0.8, y: 0 });
-    const to = at(game, { x: 4.8, y: 2 });
+    const to = at(game, { x: 1.8, y: 1 });
 
     game.pointerDown(edge.x, edge.y);
     game.pointerMove(to.x, to.y);
     game.step();
 
-    // Moved by the pointer's displacement, not to the pointer.
-    expect(game.session.balls[0]!.x).toBeCloseTo(4, 6);
-    expect(game.session.balls[0]!.y).toBeCloseTo(2, 6);
+    // Moved by the pointer's displacement, not to the pointer. Both inside the
+    // play bounds: a level-one frame is five radii across, so a target further
+    // out would be answering the clamp rather than the carry.
+    expect(game.session.balls[0]!.x).toBeCloseTo(1, 6);
+    expect(game.session.balls[0]!.y).toBeCloseTo(1, 6);
     game.destroy();
   });
 
@@ -345,11 +351,13 @@ describe("the handle", () => {
   });
 
   it("a drag larger never moves a ball", () => {
-    const game = mount([{ x: 0, y: 0 }], 5);
+    // Both sides inside maxSideIn(par(1)) = 4.56, so what is under test is the
+    // drag and not the clamp that stops the box leaving the frame.
+    const game = mount([{ x: 0, y: 0 }], 3);
     const before = game.session.balls.map((b) => ({ ...b }));
     const beforeSide = game.session.side;
     const handle = handleAt(game);
-    const looser = at(game, { x: 4, y: -4 });
+    const looser = at(game, { x: 2.2, y: -2.2 });
 
     game.handleDown(handle.x, handle.y);
     game.handleMove(looser.x, looser.y);
@@ -360,12 +368,12 @@ describe("the handle", () => {
   });
 
   it("a drag cannot grow the box past what the view can show", () => {
-    // The view is fit to the level's opening side plus its own margin, so
-    // that framed extent — minus the walls, which stand outside `side` — is
-    // exactly the largest side a drag may reach without pushing the box, and
-    // the handle sitting on its corner, off screen.
+    // The view is fit to the level's naive grid plus its own margin, so that
+    // framed extent — minus the walls, which stand outside `side` — is exactly
+    // the largest side a drag may reach without pushing the box, and the
+    // handle sitting on its corner, out of the play space.
     const game = mount([{ x: 0, y: 0 }], 5);
-    const maxSide = openSide(1) + 2 * VIEW_MARGIN - 2 * WALL_WIDTH;
+    const maxSide = maxSideIn(par(1));
     const handle = handleAt(game);
     const farOff = at(game, { x: 1000, y: -1000 });
 
@@ -403,13 +411,14 @@ describe("the handle", () => {
   it("a click ignores a ball left outside the box, and still closes around the rest", () => {
     const game = mount([
       { x: 0, y: 0 },
-      { x: 3, y: 0 },
-    ], 10);
+      { x: 1.5, y: 0 },
+    ], 4);
     const handle = handleAt(game);
-    // Drag the second ball out past where the box is about to close to; the
-    // first is left to be the "rest" compacting still has to close around.
-    const origin = at(game, { x: 3, y: 0 });
-    const outside = at(game, { x: 8, y: 8 });
+    // Drag the second ball out past where the box is about to close to, but
+    // still inside the play bounds; the first is left to be the "rest"
+    // compacting still has to close around.
+    const origin = at(game, { x: 1.5, y: 0 });
+    const outside = at(game, { x: 3.5, y: 2.4 });
     game.pointerDown(origin.x, origin.y);
     game.pointerMove(outside.x, outside.y);
     game.pointerUp();
@@ -422,7 +431,7 @@ describe("the handle", () => {
 
     // The stray ball never moved, and closing was not blocked by it.
     expect(game.session.balls[1]).toEqual(strandedBall);
-    expect(game.session.side).toBeLessThan(10);
+    expect(game.session.side).toBeLessThan(4);
     // No ball is actually inside, so nothing is worth recording yet.
     expect(bestAt(game.session, 2)).toBeUndefined();
     game.destroy();
@@ -502,7 +511,7 @@ describe("level select and advancing", () => {
   it("eases the view to the new level's fit over several frames, not in one jump", () => {
     const game = beatenAt(1);
     const startScale = game.view.scale;
-    const target = fitView(openSide(2), SIZE.width, SIZE.height).scale;
+    const target = fitView(par(2), SIZE).scale;
     expect(target).not.toBeCloseTo(startScale, 2);
 
     document.querySelector<HTMLButtonElement>("button.advance")!.click();
@@ -532,7 +541,7 @@ describe("level select and advancing", () => {
 
     settleFrames(game); // zoom ends, ball drops, no wall-clock time involved
     expect(heightOf(1)).toBe(0);
-    const target = fitView(openSide(2), SIZE.width, SIZE.height).scale;
+    const target = fitView(par(2), SIZE).scale;
     expect(game.view.scale).toBeCloseTo(target, 6);
     game.destroy();
   });

@@ -6,11 +6,12 @@ import { WALL_WIDTH } from "../game/types";
 // icon are shot from. It reads its arrangement and its framing off the stage's
 // data attributes, so the pages themselves carry no drawing code.
 //
-// The view is built here rather than by fitView(), whose VIEW_MARGIN is 2.5
-// radii of clearance for a ball shed over a wall --- room the game needs and a
-// picture does not. A still has nothing outside the box, so it frames the box
-// and stops. data-margin is the clear space kept outside the walls, in radii;
-// at 0 the box's inside fills the frame exactly and the walls fall outside it.
+// The view is built here rather than by fitView(), which frames the level's
+// naive grid plus VIEW_MARGIN either side --- the room the game needs to be
+// played in, and room a picture does not. A still has nothing outside the box,
+// so it frames the box and stops. data-margin is the clear space kept outside
+// the walls, in radii; at 0 the box's inside fills the frame exactly and the
+// walls fall outside it.
 
 const stage = document.querySelector<HTMLElement>("#stage");
 

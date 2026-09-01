@@ -1,4 +1,4 @@
-import { BALL_RADIUS, type Ball, type Side } from "./types";
+import { BALL_RADIUS, WALL_WIDTH, type Ball, type Side } from "./types";
 
 // The world <-> screen mapping. Pure: the one getBoundingClientRect call lives
 // at the edge and its result is passed in here, so a test can supply its own
@@ -20,35 +20,67 @@ export interface ViewTransform {
 export const FALLBACK_SCALE = 10;
 
 /**
- * Clear space kept outside the box on the shorter screen axis, in ball radii,
- * measured from the box's inner face.
+ * Clear space kept outside the *naive* box on the shorter screen axis, in ball
+ * radii, measured from that box's inner face. The view is fitted to the naive
+ * grid --- the square the level asks you to beat --- so the frame is a fixed
+ * `par(N) + 2 * VIEW_MARGIN` whatever the box on screen is currently doing.
  *
- * A ball pushed over a wall rests with its surface against the wall's outer
- * face, so its centre is `WALL_WIDTH + 1` out and it occupies one radius more
- * again: anything under `WALL_WIDTH + 2` would let the box expel a ball off
- * screen. At WALL_WIDTH = 0.22 that is 2.22, so this leaves 0.28 radii of slack
- * --- enough that a ball out there does not sit flush against the edge, and not
- * enough to survive the wall growing past half a radius.
+ * At 1.5 the box at `maxSideIn` has its outer wall faces exactly on the frame's
+ * edge, which is what makes that the widest the handle may drag to. It is not
+ * enough room for a ball shed over a wall to come to rest outside it --- that
+ * needs `WALL_WIDTH + 2`, and it was what the old 2.5 bought. Given up
+ * deliberately: the frame was three times the box it contained, and a ball held
+ * against the frame edge overlapping the wall is a better failure than a ball
+ * lost on the carpet with nothing saying so.
  */
-export const VIEW_MARGIN = 2.5;
+export const VIEW_MARGIN = 1.5;
+
+/** A surface's pixel size. */
+export interface Extent {
+  width: number;
+  height: number;
+}
+
+/** The square the view frames for a level whose naive grid is `naive` radii. */
+export function framedSize(naive: Side): Side {
+  return naive + 2 * VIEW_MARGIN;
+}
 
 /**
- * Fit a box of the given side into a surface of the given pixel size.
- *
- * The box is centred on the world origin and the origin sits at the centre of
- * the surface, so this is one scale factor and nothing else.
+ * The widest the box may be drawn in that frame: the side at which its outer
+ * wall faces land exactly on the frame's edge. A UI clamp on the handle rather
+ * than a rule --- nothing in here needs a side to stay under it.
  */
-export function fitView(side: Side, widthPx: number, heightPx: number): ViewTransform {
-  const usableWidth = Number.isFinite(widthPx) && widthPx > 0 ? widthPx : 0;
-  const usableHeight = Number.isFinite(heightPx) && heightPx > 0 ? heightPx : 0;
-  const shorter = Math.min(usableWidth, usableHeight);
-  const framed = side + 2 * VIEW_MARGIN;
+export function maxSideIn(naive: Side): Side {
+  return framedSize(naive) - 2 * WALL_WIDTH;
+}
+
+/**
+ * Fit the frame for a naive box of the given side into `play`, and put the
+ * world origin at the centre of `stage`.
+ *
+ * The two are separate because the play space is the stage inset by the chrome
+ * bars: the scale has to come from the room actually left for the game, while
+ * the origin stays the centre of the surface the balls are drawn on. The bars
+ * are equal top and bottom and the horizontal inset is symmetric, so in
+ * practice the two centres coincide --- but that is a fact about the layout,
+ * not something this function should assume.
+ */
+export function fitView(naive: Side, play: Extent, stage: Extent = play): ViewTransform {
+  const playWidth = usable(play.width);
+  const playHeight = usable(play.height);
+  const shorter = Math.min(playWidth, playHeight);
+  const framed = framedSize(naive);
   const scale = shorter > 0 && framed > 0 ? shorter / framed : FALLBACK_SCALE;
   return {
-    originX: usableWidth / 2,
-    originY: usableHeight / 2,
+    originX: usable(stage.width) / 2,
+    originY: usable(stage.height) / 2,
     scale,
   };
+}
+
+function usable(px: number): number {
+  return Number.isFinite(px) && px > 0 ? px : 0;
 }
 
 /** Screen y grows downward; world y grows upward. */
@@ -85,8 +117,11 @@ export function ballAt(balls: readonly Ball[], point: Ball): number | null {
 }
 
 /**
- * Half-extents of the visible area in world units, inset by a ball radius so a
- * ball resting on the bound is fully on screen.
+ * Half-extents of the play area in world units, inset by a ball radius so a
+ * ball resting on the bound is fully inside it.
+ *
+ * The play area, not the whole surface: the chrome bars are the game's own
+ * edges now, so a ball is held between them rather than sliding under them.
  *
  * Returns null when the surface has not been laid out. A zero-sized surface
  * would otherwise yield bounds of zero and clamp every ball onto the origin —
@@ -95,12 +130,11 @@ export function ballAt(balls: readonly Ball[], point: Ball): number | null {
  */
 export function viewBounds(
   view: ViewTransform,
-  widthPx: number,
-  heightPx: number,
+  play: Extent,
 ): { x: number; y: number } | null {
-  if (!(widthPx > 0) || !(heightPx > 0) || !(view.scale > 0)) return null;
+  if (!(play.width > 0) || !(play.height > 0) || !(view.scale > 0)) return null;
   return {
-    x: Math.max(0, widthPx / (2 * view.scale) - BALL_RADIUS),
-    y: Math.max(0, heightPx / (2 * view.scale) - BALL_RADIUS),
+    x: Math.max(0, play.width / (2 * view.scale) - BALL_RADIUS),
+    y: Math.max(0, play.height / (2 * view.scale) - BALL_RADIUS),
   };
 }

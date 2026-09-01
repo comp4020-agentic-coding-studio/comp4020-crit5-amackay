@@ -13,9 +13,14 @@ import { CORE_SEQUENCE, MAX_LEVEL, type Ball, type Side } from "./types";
 // than the best one. Nothing is discarded to do that: the bests and the levels
 // reached are untouched, so it is a way in, not a reset.
 
-/** How much room the box opens to when a level begins. */
+/**
+ * How much room the box opens to when a level has to be furnished from
+ * nothing. Two radii clear of the naive grid, which is a radius of visible
+ * tray on every side --- and inside `maxSideIn(par(n))`, the widest the frame
+ * can draw, which is what stops the opening state overflowing its own view.
+ */
 export function openSide(n: number): Side {
-  return par(n) + 4;
+  return par(n) + 2;
 }
 
 /** Gap between balls in a starting layout, in radii: clear, but not scattered. */

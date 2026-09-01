@@ -7,13 +7,21 @@ import {
   enterLevel,
   levelComplete,
   newSession,
-  openSide,
   record,
   serialise,
   type Session,
 } from "../game/session";
-import { ballAt, fitView, screenToWorld, viewBounds, VIEW_MARGIN, type ViewTransform } from "../game/view";
-import { BALL_RADIUS, MAX_LEVEL, WALL_WIDTH, type Ball, type Side } from "../game/types";
+import {
+  ballAt,
+  fitView,
+  maxSideIn,
+  screenToWorld,
+  viewBounds,
+  type Extent,
+  type ViewTransform,
+} from "../game/view";
+import { par } from "../game/score";
+import { BALL_RADIUS, MAX_LEVEL, type Ball, type Side } from "../game/types";
 import {
   createChrome,
   renderAdvance,
@@ -186,8 +194,13 @@ interface Closing {
 
 export interface GameOptions {
   session?: Session;
-  /** Overrides the measured surface size; tests pass one, the page does not. */
-  size?: { width: number; height: number };
+  /**
+   * Overrides the measured surface size; tests pass one, the page does not.
+   * Stands in for both the stage and the play space inside it, so a test that
+   * does not care about the chrome bars gets a play space the size of the
+   * stage --- which is what every test wanted before there were bars.
+   */
+  size?: Extent;
   /**
    * Called whenever the session reaches a new resting state worth keeping ---
    * a recorded score, a level change, or an arrangement that has come to rest.
@@ -225,33 +238,47 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   let zooming: { fromScale: number; tick: number } | null = null;
   /** Whether the level-select screen is over the stage. */
   let picking = false;
-  let view: ViewTransform = fitView(openSide(session.level), 0, 0);
+  const NO_EXTENT: Extent = { width: 0, height: 0 };
+  let view: ViewTransform = fitView(par(session.level), NO_EXTENT);
 
-  function measureSurface(): { width: number; height: number } {
+  /** The surface the balls are drawn on: the whole stage. */
+  function measureStage(): Extent {
     if (opts.size) return opts.size;
     const rect = container.getBoundingClientRect();
     return { width: rect.width, height: rect.height };
   }
 
+  /**
+   * The room actually left for the game: the stage inset by the chrome bars.
+   * The page supplies it as an element so the insets stay in the stylesheet;
+   * a test with no layout falls back to the stage.
+   */
+  function measurePlay(): Extent {
+    if (opts.size) return opts.size;
+    const play = container.ownerDocument.querySelector("#play");
+    if (!play) return measureStage();
+    const rect = play.getBoundingClientRect();
+    return { width: rect.width, height: rect.height };
+  }
+
   let bounds: { x: number; y: number } | null = null;
   /**
-   * The largest side a drag on the handle may reach. The view is fitted to
-   * `openSide(level) + 2 * VIEW_MARGIN`, so that is exactly the box's outer
-   * footprint (side + 2 * WALL_WIDTH) at the point it would fill the frame --
-   * a drag beyond this would push the box, and its corner, off screen.
+   * The largest side a drag on the handle may reach: the side whose outer wall
+   * faces land on the frame's edge. A drag beyond this would push the box, and
+   * its corner, out of the play space.
    */
-  let maxSide: Side = openSide(session.level) + 2 * VIEW_MARGIN - 2 * WALL_WIDTH;
+  let maxSide: Side = maxSideIn(par(session.level));
 
   /**
-   * Fit to the level's opening side, not the live one --- so closing the box
-   * changes what fills the frame, never the frame itself. The handle already
-   * grows the side above the opening size on a drag out; the view has to stay
-   * put through that too, which is why this is the level's fixed size and not
-   * a running max.
+   * Fit to the level's *naive* grid --- the square it asks you to beat --- and
+   * not to the box on screen. So closing the box changes what fills the frame,
+   * never the frame itself, and the frame means the same thing at every level:
+   * beat the square the view is drawn around.
    */
   function refreshView(): void {
-    const { width, height } = measureSurface();
-    const target = fitView(openSide(session.level), width, height);
+    const stage = measureStage();
+    const play = measurePlay();
+    const target = fitView(par(session.level), play, stage);
     // Only the scale is eased; the origin is just the surface centre, so it is
     // always taken live. maxSide and bounds jump straight to the new level ---
     // safe because the arrangement is at rest through a zoom, and a looser
@@ -263,8 +290,8 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
           scale: lerp(zooming.fromScale, target.scale, smoothstep(zooming.tick / ZOOM_TICKS)),
         }
       : target;
-    bounds = viewBounds(view, width, height);
-    maxSide = openSide(session.level) + 2 * VIEW_MARGIN - 2 * WALL_WIDTH;
+    bounds = viewBounds(view, play);
+    maxSide = maxSideIn(par(session.level));
   }
 
   /** Start easing the view to the current level's fit. The level has already moved. */
