@@ -19,12 +19,19 @@ function files(dir: string = DIST): string[] {
 // Everything the build emitted, as dist-relative POSIX paths.
 const shipped = files().map((path) => relative(DIST, path).split(sep).join("/"));
 
+// Every page these invariants judge, which is every page a visitor can arrive
+// at. A document marked noindex is not one: this repo ships two of them as the
+// sources the share card and the tab icon are screenshotted from, and an image
+// source has no reader to give a heading, a description or a nav to. Nothing a
+// visitor can reach may opt out this way --- the marker is in the built HTML,
+// so what is exempt is visible in the diff.
 const pages = shipped
   .filter((name) => name.endsWith(".html"))
   .map((name) => ({
     name,
     doc: new JSDOM(readFileSync(join(DIST, name), "utf8")).window.document,
-  }));
+  }))
+  .filter(({ doc }) => doc.querySelector('meta[name="robots"][content~="noindex"]') === null);
 
 describe("invariants: every page", () => {
   it("built at least one page", () => {
