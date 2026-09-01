@@ -115,9 +115,8 @@ function lerp(from: number, to: number, k: number): number {
 
 /**
  * What the screen says once the core sequence is done. A fragment, not a
- * sentence, and clear of the instruction words the spec forbids --- the whole
- * of the game's visible-prose budget is twenty words and the histogram spends
- * none, so this is where they go. Placeholder wording pending the owner's.
+ * sentence, and clear of the instruction words the spec forbids. The one place
+ * the chrome writes visible text. Placeholder wording pending the owner's.
  */
 const FINISH_TEXT = "ten levels, tighter";
 

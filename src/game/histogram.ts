@@ -8,9 +8,9 @@ import { MAX_LEVEL } from "./types";
 // each other as a picture of how the packing tightens with N.
 //
 // Nothing here is a string. The rows carry no numerals: twenty of them, each
-// with an N or a size on it, would be twenty words on a screen whose whole
-// visible-prose budget is twenty. Names for a screen reader live in an
-// aria-label at the edge, which is an attribute and costs nothing.
+// with an N or a size on it, would be twenty pieces of chrome saying what the
+// bars already show. Names for a screen reader live in an aria-label at the
+// edge, which is an attribute and costs nothing.
 
 /**
  * The span every bar and notch is measured against, in ball radii. Fixed at the

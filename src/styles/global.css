@@ -279,8 +279,8 @@ h1 {
 }
 
 /* The finish: shown once the core sequence is done and then left up, in the
-   same quiet register as the title. The game's whole visible-word budget is
-   twenty and the histogram spends none of them, so this fragment can. */
+   same quiet register as the title. The histogram writes no text at all, so
+   this fragment is the one place the chrome says anything. */
 #finish {
   position: fixed;
   top: 0.6rem;

@@ -4,7 +4,7 @@ import type { HistogramRow } from "../game/histogram";
 // next-level button, and the slot the finish fragment lands in. Like render.ts,
 // this writes and never reads back, and it writes no text anywhere except the
 // finish slot --- every name a screen reader needs is an aria-label, which is an
-// attribute and costs nothing against the visible-prose budget.
+// attribute and so never appears on screen.
 
 export interface Chrome {
   levels: HTMLElement;

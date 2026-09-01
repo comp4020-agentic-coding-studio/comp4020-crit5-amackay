@@ -242,13 +242,13 @@ What the milestones left behind, all still true and none obvious from the code:
   of the handle's own square nearer its outer corner, so a glyph sized to the
   full square has its far head sitting in the clipped-off half — this one is
   scaled to the near quadrant instead, so both tips clear the clip.
-- **The histogram carries no text, by contract.** The visible-prose budget is
-  twenty words; a numeral on each of twenty rows spends it outright. So a row is
-  a bar and three notches, its level is an `aria-label` (an attribute, off the
-  budget), and the finish fragment is the one place the chrome writes visible
-  text. `spec/mounted-prose.test.ts` walks the mounted game to level 20 and past
-  the ending and applies the crit-5 text checks to what actually renders --- the
-  static `dist/index.html` budget is a floor, this is the check with teeth.
+- **The histogram carries no text, by contract.** A numeral on each of twenty
+  rows is twenty pieces of chrome saying what a glance already shows. So a row is
+  a bar and three notches, its level is an `aria-label`, and the finish fragment
+  is the one place the chrome writes visible text.
+  `spec/mounted-prose.test.ts` walks the mounted game to level 20 and past the
+  ending and applies the crit-5 text checks to what actually renders --- the
+  static `dist/index.html` is a floor, this is the check with teeth.
 - **The opening screen is server-rendered.** `index.astro` runs `histogramRows`
   at build time and emits the `h1`, a one-row `nav`, a hidden `.advance` and an
   empty `#finish`, so `dist/index.html` holds what a first-time player sees.

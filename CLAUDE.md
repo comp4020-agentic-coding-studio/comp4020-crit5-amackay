@@ -14,14 +14,14 @@ This week the gap between what a test can hold and what only a person can is
 the point of the exercise, so name it rather than working around it.
 
 - **A green suite says nothing about whether the game teaches itself.** Tests
-  can establish that a wrong move ends the round; only a stranger's hands can
-  tell you whether the opening screen made the first move obvious, or whether
-  the ending felt earned rather than arbitrary.
+  can establish that a rule holds; only a stranger's hands can tell you whether
+  the opening screen made the first move obvious, or whether the ending felt
+  earned rather than arbitrary.
 - **So ask for a play, and say what you want watched.** When a change affects
   how the game reads or feels — pacing, difficulty, the first ten seconds —
   stop and say so rather than reporting the tests green and moving on.
-- **Keep the rules behind a seam.** State transitions, scoring, collision,
-  win/loss conditions: plain functions taking state and returning state, with
+- **Keep the rules behind a seam.** State transitions, scoring, collision and
+  level entry: plain functions taking state and returning state, with
   rendering and input at the edge. A rule bug and a rendering bug must never be
   confusable, and the spec's "one rule under a focused automated test" only
   works if a rule is a thing you can call.
@@ -163,11 +163,10 @@ won't tell you:
   greps the bundled CSS for `(width|min-width): NNNpx` over 390 and calls it a
   fixed width wider than a phone — and `@media (max-width: 560px)` matches that
   regex. `35rem` does not.
-- **The visible-prose budget is 20 words, and the histogram spends none.** Any
-  text node in a level-select row is one word times up to twenty rows.
-  `spec/mounted-prose.test.ts` walks the mounted game to level 20 and the ending
-  and holds the instruction/sentence/word checks against what actually renders;
-  the static `dist/index.html` budget is only a floor.
+- **The no-instructions checks run against the mounted game, not just the
+  built page.** `spec/mounted-prose.test.ts` walks the game to level 20 and past
+  the ending and holds the instruction and sentence checks against what actually
+  renders; `dist/index.html` only ever shows the opening screen.
 
 Nothing here measures accessibility, performance, or whether the game is any
 good.

@@ -6,7 +6,7 @@ import { newSession } from "../game/session";
 // The opening screen, server-rendered: level one, one row in the nav, and the
 // two empty slots the running game fills. So dist/index.html carries what a
 // first-time player actually sees --- which is the state the "no instructions"
-// spec line is about, and the state the static prose budget has to measure.
+// spec line is about, and the state the static text checks measure.
 // Everything with a pixel position (the box, the balls, the bar lengths) is
 // written on hydrate; createChrome adopts these elements in place.
 const rows = histogramRows(newSession());
