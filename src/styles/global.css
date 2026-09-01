@@ -1,30 +1,57 @@
-/* Two surfaces and one light. Everything sits on carpet; the box is a
-   cardboard tray laid on it, and the balls sit inside the tray. Nothing is
-   labelled, so the materials carry it: a ball pushed over the rim is on the
-   carpet, and that reads without a word.
+/* One surface: a sheet of paper with a figure drawn on it. Nothing is lit,
+   nothing casts a shadow, nothing is made of anything. What used to be carried
+   by material --- cardboard tray, wool carpet, glass balls --- is carried by
+   line weight and by which side of a line a thing is on.
 
-   The light is one soft source above and slightly left of the screen, so every
-   highlight is up-left and every shadow falls down-right. Lengths that belong
-   to the game are written in --r, one ball radius in screen pixels, published
-   per frame by render.ts. The fallback below only matters before the first
-   frame. */
+   Two inks, and they mean different things:
+
+     --ink    the figure. The circles, the square that bounds them, the hatch
+              in its walls, the numerals.
+     --rule   measurement and the hand. The ruler across the top, the tie down
+              to the box's face, the star sizes, the corner the player drags,
+              and the button that appears once a size has been beaten.
+
+   Lengths that belong to the game are written in --r, one ball radius in
+   screen pixels, published per frame by render.ts onto the document element ---
+   the ruler graduates in radii too, and it is not drawn on the stage. The
+   fallback below only matters before the first frame. */
 :root {
-  --carpet: #a4a897;
-  --carpet-lit: #b6b9a8;
-  --carpet-deep: #7f8371;
+  --paper: #f4f1e8;
+  --ink: #24303a;
+  --ink-rgb: 36 48 58;
+  --rule: #b4462d;
+  --rule-rgb: 180 70 45;
 
-  /* The floor sits in the shade of its own walls, so it reads a clear step
-     darker than the wall tops that are catching the light. */
-  --card-lit: #bfa47d;
-  --card: #b09471;
-  --card-deep: #9c8360;
-  --card-wall: #dfc9a9;
+  /* The wash inside a circle. Translucent on purpose: two circles that overlap
+     are drawn as two circles that overlap --- crossing arcs and a darker lens
+     between them --- which is the one thing the old opaque discs could not
+     say. */
+  --disc-fill: rgb(108 140 168 / 22%);
 
-  --ink: #3d3f34;
-  --shadow: 62 46 30;
+  /* Line weights. A drawn line does not get thicker because the figure is
+     bigger, so these are screen pixels and not radii --- unlike --wall, which
+     is a real thickness in the model and comes from the rules. */
+  --stroke: 2px;
+  --hair: 1.5px;
 
   --r: 14px;
   --wall: 3px;
+
+  /* The paper's grid, one ball radius to the square, with a line through the
+     world origin. Every ball centre in a naive square packing lands on an
+     intersection, and a level's opening box has its interior faces on lines. */
+  --cell: var(--r);
+  --grid-out: rgb(var(--ink-rgb) / 6%);
+  --grid-in: rgb(var(--ink-rgb) / 13%);
+  --grid-at: calc(50% - var(--cell) / 2);
+
+  /* Hatch: the drafting convention for solid material, used for the two things
+     that are solid --- the box's walls and the corner fitting. */
+  --hatch: repeating-linear-gradient(
+    45deg,
+    rgb(var(--ink-rgb) / 55%) 0 1px,
+    transparent 1px 6px
+  );
 
   /* The screen is three bands: a chrome bar, the play space, a chrome bar. The
      bars are equal so the play space stays centred on the viewport --- which
@@ -35,12 +62,16 @@
   --gutter: 1rem;
   --disc: 56px;
 
-  /* One star, drawn three times: on the size bar at the size that earns it, in
-     the display once it has been, and on the copy that travels between them. */
-  --star-shape: polygon(
-    50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%,
-    50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%
-  );
+  /* One star, drawn twice: hollow for a size not yet reached, solid for one
+     that has been. Both are the same polygon in the same padded viewBox, so a
+     slot filling in does not change size --- which is why they are two drawings
+     rather than a clip-path and a colour. */
+  --star-line: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-7 -7 114 114'%3E%3Cpolygon points='50,0 61,35 98,35 68,57 79,91 50,70 21,91 32,57 2,35 39,35' fill='none' stroke='%23b4462d' stroke-width='12' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --star-fill: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-7 -7 114 114'%3E%3Cpolygon points='50,0 61,35 98,35 68,57 79,91 50,70 21,91 32,57 2,35 39,35' fill='%23b4462d' stroke='%23b4462d' stroke-width='12' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  /* A figure's labels are set, not typed. The only text in the game is its
+     title, the twenty level numbers and the word at the end of the list. */
+  --label: Georgia, "Iowan Old Style", "Times New Roman", serif;
   color-scheme: light;
 }
 
@@ -48,6 +79,8 @@
   :root {
     --bar-h: 4rem;
     --disc: 48px;
+    --stroke: 1.6px;
+    --hair: 1.25px;
   }
 }
 
@@ -57,25 +90,29 @@
 
 /* The stage is fixed, so nothing gives the body a height of its own --- and a
    zero-height body hands the canvas a background whose positioning box has
-   collapsed, which flattens the carpet gradient to one colour. */
+   collapsed, which puts the grid's phase somewhere other than the middle of
+   the viewport. */
 html,
 body {
   height: 100%;
 }
 
+/* The sheet. The grid runs edge to edge and is phase-locked to the viewport's
+   centre, which is where render.ts puts the world origin --- so the ruled lines
+   outside the box and the ruled lines inside it are the same lines, and stay
+   the same lines while the box is being dragged. */
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
   color: var(--ink);
   overflow: hidden;
   overscroll-behavior: none;
-  /* A pool of light over the middle, where the box is, falling off to the
-     corners; the noise on top is the fibre that stops it reading as paint. */
-  background-color: var(--carpet);
+  background-color: var(--paper);
   background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E"),
-    radial-gradient(100% 78% at 48% 36%, var(--carpet-lit) 0%, var(--carpet) 45%, var(--carpet-deep) 100%);
-  background-blend-mode: overlay, normal;
+    linear-gradient(90deg, var(--grid-out) 0 1px, transparent 1px),
+    linear-gradient(var(--grid-out) 0 1px, transparent 1px);
+  background-size: var(--cell) var(--cell);
+  background-position: var(--grid-at) var(--grid-at);
 }
 
 main {
@@ -86,13 +123,14 @@ main {
    it. The game screen is the game. */
 h1 {
   flex: none;
-  margin: 0 0 1.2rem;
+  margin: 0 0 1.4rem;
+  font-family: var(--label);
   font-size: 1.05rem;
-  font-weight: 500;
-  letter-spacing: 0.14em;
+  font-weight: 400;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #fff;
-  opacity: 0.72;
+  color: var(--ink);
+  opacity: 0.8;
 }
 
 /* The room left for the game once the two bars have taken theirs. Nothing is
@@ -143,50 +181,49 @@ h1 {
 
 /* Balls are elements rather than canvas: at N <= 20 the cost is irrelevant, the
    level-change zoom becomes one transform, and a test can find them. Sizes and
-   positions are written by render.ts, never declared here. */
+   positions are written by render.ts, never declared here.
+
+   Drawn the way a circle is drawn in a figure: one stroke of constant weight, a
+   translucent wash, a dot at the centre. */
 .ball {
   position: absolute;
   -webkit-user-drag: none;
   top: 0;
   left: 0;
   border-radius: 50%;
-  /* Cool and pale against warm cardboard, so a ball reads as a different
-     material from the thing it is sitting in. */
-  background: radial-gradient(
-    circle at 34% 27%,
-    #ffffff 0%,
-    #f1f4f7 20%,
-    #d5dbe1 56%,
-    #b0b9c2 84%,
-    #98a2ac 100%
-  );
-  /* --h is how far off the plane this ball is: 0 resting, 1 at carry height,
-     written per frame by render.ts. The view is orthographic, so height cannot
-     change a ball's size --- the shadow does all of it, sliding out from under
-     the ball and going softer and fainter as it rises. That is the whole reason
-     the palette went light enough for a shadow to show. */
+  background: var(--disc-fill);
+  box-shadow: inset 0 0 0 var(--stroke) var(--ink);
+  /* Height off the plane is not drawn. It is real --- a carried ball is lifted
+     clear of the others and does not collide while it is up there --- but a
+     figure has no light in it, so there is nothing for it to cast and nothing
+     to project. render.ts still writes --h per frame; only the drawing of it
+     has gone. What a raised ball keeps is its place in the stack, which
+     render.ts sets directly. */
   --h: 0;
-  --lift-x: calc(var(--r) * (0.05 + 0.17 * var(--h)));
-  --lift-y: calc(var(--r) * (0.13 + 0.47 * var(--h)));
-  --lift-blur: calc(var(--r) * (0.26 + 0.59 * var(--h)));
-  --lift-alpha: calc(34% - 6% * var(--h));
-  box-shadow:
-    var(--lift-x) var(--lift-y) var(--lift-blur) rgb(var(--shadow) / var(--lift-alpha)),
-    inset calc(var(--r) * -0.11) calc(var(--r) * -0.15) calc(var(--r) * 0.32) rgb(var(--shadow) / 20%);
   will-change: transform;
+  z-index: 1;
 }
 
-/* The tray. Its background stops at the square, so the fill is exactly the
-   inside of the box and the carpet is exactly the outside. The rim is an
-   outline pulled inward by half its width, so the band straddles the square
-   the way the rule does: a ridge on the line, falling away either side, not a
-   wall standing inside it. */
+.ball::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  border-radius: 50%;
+  background: rgb(var(--ink-rgb) / 60%);
+}
+
+/* The square. The element is its interior exactly --- its edge is the wall's
+   inner face, which is where a settled ball comes to rest --- so the interior
+   is what ::after draws and the walls are what ::before draws, hung off the
+   outside of it. */
 .box {
   position: absolute;
   top: 0;
   left: 0;
-  background:
-    radial-gradient(160% 160% at 34% 24%, var(--card-lit) 0%, var(--card) 66%, var(--card-deep) 100%);
   will-change: transform;
   /* No transition: every motion the box makes --- a drag, a click-driven
      compact, and now a level change's zoom --- is written every frame by
@@ -194,58 +231,101 @@ h1 {
      makes the box lag behind whatever is driving it. */
 }
 
-/* The walls. They stand entirely outside the box element, whose edge is the
-   inner face --- so a settled ball's surface touches the wall it is drawn
-   against, because --wall is the same number the rules settle it against. A
-   border on a box inset by its own width lands exactly there, and the mitred
-   corners turn it for free.
-
-   One flat colour all the way round: a lit and a shaded pair made it a bevelled
-   frame lying on the carpet rather than four walls standing up off it. What
-   says they stand up is the shadow, outward onto the carpet and inward onto the
-   floor, both cast from the same light as everything else. */
+/* The walls, in section: two hairlines with hatch between them, at the
+   thickness the rules actually settle balls against. They stand entirely
+   outside the box element, so a border on a box inset by its own width lands
+   exactly there and the mitred corners turn it for free. The background paints
+   under the border as well as inside it; ::after covers the inside again, and
+   being later in the box's own tree it paints over it. */
 .box::before {
   content: "";
   position: absolute;
   inset: calc(var(--wall) * -1);
-  border: var(--wall) solid var(--card-wall);
-  box-shadow:
-    calc(var(--r) * 0.09) calc(var(--r) * 0.24) calc(var(--r) * 0.5) rgb(var(--shadow) / 30%),
-    inset calc(var(--r) * 0.11) calc(var(--r) * 0.2) calc(var(--r) * 0.42) rgb(var(--shadow) / 30%);
+  border: var(--wall) solid transparent;
+  background-image: var(--hatch);
+  background-clip: border-box;
+  outline: var(--hair) solid var(--ink);
+  outline-offset: calc(var(--hair) * -1);
 }
 
-/* The handle: a metal corner fitting on the tray, the one thing on screen that
-   isn't carpet, wall or ball --- which is what says it's for touching. Its
+/* The inside: the same ruled paper as the page, at the same phase, picked out
+   a shade stronger. That is the whole of what says inside from outside --- no
+   fill, no wash, no material. The ring is the wall's inner face. */
+.box::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(90deg, var(--grid-in) 0 1px, transparent 1px),
+    linear-gradient(var(--grid-in) 0 1px, transparent 1px);
+  background-size: var(--cell) var(--cell);
+  background-position: var(--grid-at) var(--grid-at);
+  box-shadow: 0 0 0 var(--hair) var(--ink);
+}
+
+/* The handle: the corner of the square you can take hold of. Hatched like the
+   walls, because it is the same solid thing, but in the hand's ink rather than
+   the figure's --- it is the one part of the drawing that is a control. Its
    right angle sits flush on the box's own outer corner, filed by render.ts to
-   be exactly the largest triangle that still clears a ball settled there, so
-   it never overlaps a ball and never stands out past the box either.
-   Positioned and sized by render.ts every frame. No z-index: it stays at the
-   same auto-ordered layer as .box, painted after it in document order and so
-   above it, but below every ball, which is given an explicit z-index of its
-   own --- a ball resting in that corner sits on top of the handle exactly the
-   way it sits on top of the tray underneath it. */
+   be exactly the largest triangle that still clears a ball settled there.
+   No z-index: it stays at the same auto-ordered layer as .box, painted after
+   it in document order and so above it, but below every ball. */
 .handle {
   position: absolute;
   top: 0;
   left: 0;
   clip-path: polygon(100% 100%, 100% 0%, 0% 100%);
   cursor: nwse-resize;
-  background: radial-gradient(circle at 78% 78%, #eee2c8 0%, #d8c79f 45%, #a8925f 100%);
-  box-shadow:
-    inset calc(var(--r) * -0.08) calc(var(--r) * -0.1) calc(var(--r) * 0.18) rgb(var(--shadow) / 35%),
-    inset calc(var(--r) * 0.06) calc(var(--r) * 0.08) calc(var(--r) * 0.12) rgb(255 255 255 / 40%);
+  background-color: rgb(var(--rule-rgb) / 12%);
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgb(var(--rule-rgb) / 55%) 0 1px,
+    transparent 1px 6px
+  );
 }
 
-/* The level select: its own screen, one track per level in the game. A track's
-   fill is the player's best size as a fraction of the widest square the game
-   asks for, so a short bar is a tight pack and the stack as a whole is the
-   shape of the packing problem getting harder. The notches are the star
-   thresholds. Nothing here carries a number --- the bar lengths are the
-   reading, and a screen reader gets the level from aria-label.
+/* The resize glyph itself, drawn on the fitting rather than left to the
+   cursor alone --- the cursor only tells a player anything once they are
+   already on top of it, and this is the one control in the game. A unicode
+   arrow glyph does not work here: the visible triangle is only the half of
+   the handle's square nearer its own outer corner (x + y >= 100%, in the
+   square's own percentage space), and a two-headed arrow sized to the full
+   square has its far head sitting in the clipped-off half. So this is a
+   two-headed arrow drawn as a plain shape rather than a character, scaled
+   to fit inside that lower-right quadrant instead of the full square --- both
+   tips, and every point between them, comfortably past x + y = 100% (a 4-point
+   margin at the nearer tip), so nothing here is cut by the parent's own
+   clip-path. */
+.handle::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--rule);
+  clip-path: polygon(
+    54% 54%,
+    66% 57%,
+    63% 60%,
+    94% 91%,
+    97% 88%,
+    100% 100%,
+    88% 97%,
+    91% 94%,
+    60% 63%,
+    57% 66%
+  );
+}
 
-   It is a sheet over the stage rather than a route: the game underneath keeps
+/* The level select: its own screen, one row per level in the game. A row's bar
+   is the player's best size as a fraction of the widest square the game asks
+   for, all twenty at one shared scale, so a short bar is a tight pack and the
+   stack as a whole is the shape of the packing problem getting harder. The
+   stars on a row are the same star sizes the game screen's ruler carries.
+
+   A clean sheet rather than a sheet over the drawing: the game underneath keeps
    running, so there is no second page to build and nothing to restore on the
-   way back. */
+   way back, but nothing shows through either --- a list you have to squint past
+   is not a screen. */
 #screen {
   position: fixed;
   inset: 0;
@@ -256,10 +336,7 @@ h1 {
   padding: var(--bar-h) var(--gutter) 2rem;
   overflow-y: auto;
   overscroll-behavior: contain;
-  /* Near-opaque, not a wash: the game showing through turned the rows into
-     texture over a picture of a box, and a list you have to squint past is not
-     a screen. Still the shadow colour, so it reads as the same world. */
-  background: rgb(var(--shadow) / 97%);
+  background: var(--paper);
 }
 
 #screen[hidden] {
@@ -273,10 +350,11 @@ h1 {
   gap: 0.5rem;
 }
 
-/* A row: its level's number in a fixed gutter, then a track carrying the bar
-   and the three star sizes. A gutter rather than an overlay, because at one
-   shared scale the low levels' stars sit 10-20% along the track, which is
-   exactly where a number written into the track would be. */
+/* A row: its level's number in a fixed gutter, then a dimension bar drawn the
+   way the ruler upstairs is drawn --- a faint track, an inked length, the star
+   sizes marked on it. A gutter rather than an overlay, because at one shared
+   scale the low levels' stars sit 10-20% along the track, which is exactly
+   where a number written into the track would be. */
 .level {
   position: relative;
   display: block;
@@ -288,14 +366,18 @@ h1 {
   height: 40px;
   padding: 0;
   border: none;
-  border-radius: 4px;
-  background: rgb(255 255 255 / 17%);
-  color: #fff;
+  background-color: transparent;
+  background-image: linear-gradient(rgb(var(--ink-rgb) / 9%) 0 0);
+  background-repeat: no-repeat;
+  background-position: var(--index-w) center;
+  background-size: calc(100% - var(--index-w)) 12px;
+  color: var(--ink);
   font: inherit;
   cursor: pointer;
   --index-w: 2.6rem;
 }
 
+/* A figure label: set, italic, in the same ink as the drawing. */
 .level .index {
   position: absolute;
   left: 0;
@@ -305,35 +387,121 @@ h1 {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.8rem;
-  font-variant-numeric: tabular-nums;
-  opacity: 0.75;
+  font-family: var(--label);
+  font-style: italic;
+  font-size: 0.95rem;
+  opacity: 0.85;
 }
 
 .level:focus-visible {
-  outline: 2px solid #fff;
+  outline: 2px solid var(--rule);
   outline-offset: 2px;
+}
+
+.level .bar {
+  position: absolute;
+  left: var(--index-w);
+  top: 50%;
+  height: 12px;
+  margin-top: -6px;
+  width: calc(var(--bar, 0) * (100% - var(--index-w)));
+  background: rgb(var(--ink-rgb) / 82%);
+}
+
+/* The three star sizes, drawn as the stars they are so a row reads the same way
+   the game screen's ruler does: hollow for a size not reached, solid once it
+   has been.
+
+   One lane each, tightest at the top, for the same reason the ruler's ticks are
+   stacked: all twenty rows share one scale, so an early level's three
+   thresholds land within a few pixels of each other and three stars on the
+   centre line would be one blot. */
+.level .notch {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--index-w) + var(--at) * (100% - var(--index-w)));
+  width: 10px;
+  height: 10px;
+  margin: 0 0 0 -5px;
+  transform: translateY(calc(-50% + (2 - var(--rank)) * 10px));
+  background: var(--star-line) center / contain no-repeat;
+}
+
+.level .notch.is-won {
+  background-image: var(--star-fill);
+}
+
+.level.is-current {
+  outline: var(--hair) solid var(--rule);
+  outline-offset: 3px;
+}
+
+/* A level not reached yet. Shown so the game's length is visible, and dimmed
+   and unclickable so it is plainly not somewhere to go. */
+.level.is-locked {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.level.is-locked .notch {
+  display: none;
+}
+
+.level .lock {
+  display: none;
+}
+
+/* The padlock, drawn rather than set: a filled body and a bordered shackle
+   sitting on top of it. Same approach as the next-level chevron and the resize
+   arrow --- no glyph, no image, nothing that needs a font to arrive first.
+
+   At the near end of the empty track, not in the number's gutter: it used to
+   sit on top of the numeral, which is the one thing on a locked row still
+   worth reading. */
+.level.is-locked .lock {
+  display: block;
+  position: absolute;
+  left: calc(var(--index-w) + 0.5rem);
+  top: 50%;
+  width: 11px;
+  height: 9px;
+  margin-top: 2px;
+  transform: translateY(-50%);
+  border-radius: 1.5px;
+  background: var(--ink);
+}
+
+.level.is-locked .lock::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  bottom: 7px;
+  width: 7px;
+  height: 7px;
+  border: 2px solid var(--ink);
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
 }
 
 /* The end of the game: a row's worth of space under the last level, saying so
    and nothing else. */
 .fin {
   flex: none;
-  margin-top: 0.4rem;
+  margin-top: 0.6rem;
+  font-family: var(--label);
   font-size: 0.8rem;
-  font-weight: 500;
   letter-spacing: 0.3em;
   text-indent: 0.3em;
   text-transform: uppercase;
-  color: #fff;
-  opacity: 0.6;
+  color: var(--ink);
+  opacity: 0.55;
 }
 
-/* The size bar. Its left edge is the viewport's centre, which is the box's
-   centre, and it runs right at exactly the box's own scale --- so it is a
-   half-scale drawing of the box's width and nothing on it needs a number. The
-   mark sits at the same screen x as the box's right interior face; #tie draws
-   that alignment rather than leaving it to be noticed.
+/* The ruler. Its left edge is the viewport's centre, which is the box's centre,
+   and it runs right at exactly the box's own scale --- so it is a half-scale
+   drawing of the box's width and nothing on it needs a number. The mark sits at
+   the same screen x as the box's right interior face; #tie draws that alignment
+   rather than leaving it to be noticed.
 
    Every position inside is a pixel length written by chrome.ts: --now for the
    box as it stands, --at on each star for the size that earns it. */
@@ -351,16 +519,39 @@ h1 {
   display: none;
 }
 
-/* The ruler itself, running the full width available: past the mark is the
-   room the box could still be given, which is worth being able to see. */
+/* The ruler's own graduations, running the full width available: past the mark
+   is the room the box could still be given, which is worth being able to see.
+   A long graduation every --r, which is the pitch of the paper's grid at the
+   box's own scale --- so the long ticks from the centre rightward are the grid
+   lines crossing the box's right half, counted off --- and a short one at each
+   half, which is what makes it read as a ruler rather than as four marks. */
 #gauge .track {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 1rem;
   height: 12px;
-  border-radius: 3px;
-  background: rgb(var(--shadow) / 20%);
+  background-image:
+    linear-gradient(rgb(var(--ink-rgb) / 45%) 0 0),
+    repeating-linear-gradient(
+      90deg,
+      rgb(var(--ink-rgb) / 32%) 0 1px,
+      transparent 1px var(--r)
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgb(var(--ink-rgb) / 24%) 0 1px,
+      transparent 1px calc(var(--r) / 2)
+    );
+  background-repeat: no-repeat;
+  background-position:
+    left bottom,
+    left bottom,
+    left bottom;
+  background-size:
+    100% 1px,
+    100% 8px,
+    100% 4px;
 }
 
 #gauge .fill {
@@ -368,33 +559,34 @@ h1 {
   left: 0;
   bottom: 1rem;
   width: var(--now);
-  height: 12px;
-  border-radius: 3px;
-  background: var(--card-wall);
+  height: 7px;
+  background: var(--rule);
 }
 
 /* The box is smaller than a star, but the circles do not fit in it --- so the
-   bar is not an achievement yet. Hollowed out rather than recoloured: the fill
+   bar is not a measurement yet. Hollowed out rather than recoloured: the fill
    is what says "this much is settled", and nothing is. */
 #gauge.is-unfit .fill {
   background: none;
-  box-shadow: inset 0 0 0 2px var(--card-wall);
-  opacity: 0.55;
+  box-shadow: inset 0 0 0 var(--hair) var(--rule);
+  opacity: 0.6;
 }
 
 #gauge .mark {
   position: absolute;
   left: var(--now);
-  bottom: calc(1rem - 4px);
+  bottom: calc(1rem - 5px);
   width: 2px;
-  height: 20px;
+  height: 22px;
   margin-left: -1px;
-  background: var(--ink);
+  background: var(--rule);
 }
 
 /* The three star sizes, each in a lane of its own. They climb as they tighten,
    so the three of them read left-to-right and down as easier, and the one
-   nearest the mark is the one still to beat. */
+   nearest the mark is the one still to beat. Solid: these are the sizes the
+   game is asking for, whether or not they have been reached --- what changes on
+   reaching one is the slot on the left. */
 #gauge .tick {
   position: absolute;
   left: var(--at, 0px);
@@ -406,9 +598,7 @@ h1 {
   width: var(--star);
   height: var(--star);
   margin-left: calc(var(--star) / -2);
-  background: var(--ink);
-  opacity: 0.62;
-  clip-path: var(--star-shape);
+  background: var(--star-fill) center / contain no-repeat;
 }
 
 /* A shorter bar has less room above the track for the three lanes. After the
@@ -424,21 +614,21 @@ h1 {
 #gauge .tick[data-rank="2"] { --rank: 2; }
 #gauge .tick[data-rank="1"] { --rank: 1; }
 
-/* What has been won at this level, sitting immediately left of the size bar so
-   the two read as one thing: the sizes to beat on the right, what beating them
-   got you on the left. Right-aligned to the centre, which is where the bar
+/* What has been won at this level, sitting immediately left of the ruler so the
+   two read as one thing: the sizes to beat on the right, what beating them got
+   you on the left. Right-aligned to the centre, which is where the ruler
    starts.
 
-   A won star is solid and an unwon one is a ghost of the same shape, rather
-   than a true outline: an outline needs a hole, and the hole would have to be
-   painted in whatever the carpet happens to be behind it, which is a gradient. */
+   Hollow until won, then solid --- the same star in the same place, inked in.
+   Two drawings of one polygon rather than one drawing at two opacities, so
+   nothing moves or changes size when a slot fills. */
 #stars {
   position: absolute;
   right: calc(50% + 0.75rem);
   top: 50%;
   transform: translateY(-50%);
   display: flex;
-  gap: 6px;
+  gap: 7px;
   --slot: 22px;
 }
 
@@ -449,16 +639,14 @@ h1 {
 #stars .star {
   width: var(--slot);
   height: var(--slot);
-  background: var(--ink);
-  opacity: 0.16;
-  clip-path: var(--star-shape);
+  background: var(--star-line) center / contain no-repeat;
 }
 
 #stars .star.is-won {
-  opacity: 0.85;
+  background-image: var(--star-fill);
 }
 
-/* The copy that travels: from the size on the bar that earned the star to the
+/* The copy that travels: from the size on the ruler that earned the star to the
    slot that now holds it, swelling on the way. Positioned and sized in pixels
    by chrome.ts, which measures both ends --- the one place in the chrome that
    reads the layout, because an animation between two places has to know both. */
@@ -466,15 +654,14 @@ h1 {
   position: fixed;
   z-index: 4;
   pointer-events: none;
-  background: var(--ink);
-  clip-path: var(--star-shape);
+  background: var(--star-fill) center / contain no-repeat;
   animation: fly 520ms cubic-bezier(0.33, 0.85, 0.35, 1) forwards;
 }
 
 @keyframes fly {
   0% {
     transform: translate(0, 0) scale(1);
-    opacity: 0.62;
+    opacity: 0.7;
   }
 
   45% {
@@ -486,7 +673,7 @@ h1 {
 
   100% {
     transform: translate(var(--dx), var(--dy)) scale(var(--grow));
-    opacity: 0.85;
+    opacity: 1;
   }
 }
 
@@ -498,7 +685,7 @@ h1 {
   }
 }
 
-/* The linkage: a dotted line from the size bar's mark down to the box's top
+/* The linkage: a dimension line from the ruler's mark down to the box's top
    right interior corner, at the one screen x they share. */
 #tie {
   position: fixed;
@@ -506,7 +693,7 @@ h1 {
   top: var(--top, 0px);
   height: var(--length, 0px);
   width: 0;
-  border-left: 2px dotted rgb(var(--shadow) / 45%);
+  border-left: 2px dotted rgb(var(--rule-rgb) / 65%);
   margin-left: -1px;
   z-index: 2;
   pointer-events: none;
@@ -516,112 +703,10 @@ h1 {
   display: none;
 }
 
-.level .bar {
-  position: absolute;
-  left: var(--index-w);
-  top: 0;
-  height: 100%;
-  width: calc(var(--bar, 0) * (100% - var(--index-w)));
-  border-radius: 0 4px 4px 0;
-  background: var(--card-wall);
-}
-
-/* The three star sizes, drawn as the stars they are so a row reads the same way
-   the game screen's size bar does.
-
-   A star is won when the recorded best is at least as tight as it, which is
-   exactly when the bar ends before it --- so an unwon star always sits on the
-   bar and a won one always sits off it, on the empty track. Hence the two
-   colours rather than two opacities: each is the one that reads against the
-   surface its own state puts it on. */
-.level .notch {
-  position: absolute;
-  top: 50%;
-  left: calc(var(--index-w) + var(--at) * (100% - var(--index-w)));
-  width: 12px;
-  height: 12px;
-  margin: -6px 0 0 -6px;
-  background: rgb(var(--shadow) / 55%);
-  clip-path: var(--star-shape);
-}
-
-.level .notch.is-won {
-  background: #fff;
-  opacity: 0.9;
-}
-
-/* The goal: the tightest threshold the box has not reached yet, picked out
-   from the two either side of it. Marked rather than drawn --- it is one of the
-   three notches already there, so there is only ever one thing saying where a
-   threshold is. */
-.level .notch.is-goal {
-  top: -4px;
-  bottom: -4px;
-  width: 2px;
-  background: var(--ink);
-}
-
-#levels .notch.is-goal {
-  background: #fff;
-}
-
-.level.is-current {
-  outline: 1.5px solid var(--ink);
-  outline-offset: 1.5px;
-}
-
-#levels .level.is-current {
-  outline-color: #fff;
-}
-
-/* A level not reached yet. Shown so the game's length is visible, and dimmed
-   and unclickable so it is plainly not somewhere to go. */
-.level.is-locked {
-  cursor: default;
-  opacity: 0.45;
-}
-
-.level.is-locked .notch {
-  display: none;
-}
-
-.level .lock {
-  display: none;
-}
-
-/* The padlock, drawn rather than set: a filled body and a bordered shackle
-   sitting on top of it, both in the row's own colour. Same approach as the
-   next-level chevron and the resize arrow --- no glyph, no image, nothing that
-   needs a font to arrive first. */
-.level.is-locked .lock {
-  display: block;
-  position: absolute;
-  left: 0.8rem;
-  top: 50%;
-  width: 11px;
-  height: 9px;
-  margin-top: 2px;
-  transform: translateY(-50%);
-  border-radius: 1.5px;
-  background: #fff;
-}
-
-.level.is-locked .lock::before {
-  content: "";
-  position: absolute;
-  left: 2px;
-  bottom: 7px;
-  width: 7px;
-  height: 7px;
-  border: 2px solid #fff;
-  border-bottom: none;
-  border-radius: 4px 4px 0 0;
-}
-
-/* The chrome's buttons share a shape: a metal disc in a corner, the same
-   fitting the box's handle is made of, so what is pressable reads as one
-   material. Each one draws its glyph on ::after as a clip-path --- no text,
-   because the game names nothing it can show instead. */
+/* The chrome's buttons share a shape: a ruled circle on the paper, glyph
+   inside, nothing else --- so what is pressable reads as one thing and none of
+   it reads as part of the figure. Each one draws its glyph on ::after as a
+   clip-path --- no text, because the game names nothing it can show instead. */
 .advance,
 .pick,
 .back {
@@ -635,10 +720,8 @@ h1 {
   border: none;
   border-radius: 50%;
   cursor: pointer;
-  background: radial-gradient(circle at 38% 32%, #eee2c8 0%, #d8c79f 45%, #a8925f 100%);
-  box-shadow:
-    calc(var(--r) * 0.06) calc(var(--r) * 0.16) calc(var(--r) * 0.4) rgb(var(--shadow) / 32%),
-    inset calc(var(--r) * 0.06) calc(var(--r) * 0.08) calc(var(--r) * 0.12) rgb(255 255 255 / 40%);
+  background: var(--paper);
+  box-shadow: inset 0 0 0 var(--hair) var(--ink);
   z-index: 3;
 }
 
@@ -655,27 +738,28 @@ h1 {
   position: absolute;
   inset: 0;
   background: var(--ink);
-  opacity: 0.6;
 }
 
 /* It appears only once the level has been beaten, so its arrival is the game
-   saying "that one's done". A right-pointing chevron. */
+   saying "that one's done" --- and it arrives in the measuring ink, because a
+   beaten level is a size that was reached. A right-pointing chevron. */
+.advance {
+  right: var(--gutter);
+  box-shadow: inset 0 0 0 var(--stroke) var(--rule);
+}
+
 .advance::after {
+  background: var(--rule);
   clip-path: polygon(
     40% 28%, 50% 28%, 66% 50%, 50% 72%, 40% 72%, 54% 50%
   );
 }
 
-/* Opens the level screen: three stacked tracks, which is what the screen is.
-   The left end of the top bar --- nothing else is over there now that the title
-   has gone to the screen it names. */
+/* Opens the level screen: three stacked bars, which is what the screen is. The
+   left end of the top bar --- nothing else is over there now that the title has
+   gone to the screen it names. */
 .pick {
   left: var(--gutter);
-}
-
-/* The one thing in the bottom bar. */
-.advance {
-  right: var(--gutter);
 }
 
 .pick::after {
@@ -698,37 +782,5 @@ h1 {
 .back::after {
   clip-path: polygon(
     60% 28%, 50% 28%, 34% 50%, 50% 72%, 60% 72%, 46% 50%
-  );
-}
-
-/* The resize glyph itself, drawn on the fitting rather than left to the
-   cursor alone --- the cursor only tells a player anything once they are
-   already on top of it, and this is the one control in the game. A unicode
-   arrow glyph does not work here: the visible triangle is only the half of
-   the handle's square nearer its own outer corner (x + y >= 100%, in the
-   square's own percentage space), and a two-headed arrow sized to the full
-   square has its far head sitting in the clipped-off half. So this is a
-   two-headed arrow drawn as a plain shape rather than a character, scaled
-   to fit inside that lower-right quadrant instead of the full square --- both
-   tips, and every point between them, comfortably past x + y = 100% (a 4-point
-   margin at the nearer tip), so nothing here is cut by the parent's own
-   clip-path. */
-.handle::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--ink);
-  opacity: 0.55;
-  clip-path: polygon(
-    54% 54%,
-    66% 57%,
-    63% 60%,
-    94% 91%,
-    97% 88%,
-    100% 100%,
-    88% 97%,
-    91% 94%,
-    60% 63%,
-    57% 66%
   );
 }

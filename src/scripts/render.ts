@@ -59,14 +59,16 @@ export function render(
 ): void {
   reconcile(surface, balls.length);
 
-  // One ball radius in screen pixels, published to CSS so shadow and wall
-  // widths are stated in radii and survive the level-change zoom. A shadow
-  // sized in em would be pinned to the root font size and would come adrift
-  // from the ball it belongs to the moment the view rescaled.
-  surface.container.style.setProperty("--r", `${BALL_RADIUS * view.scale}px`);
+  // One ball radius in screen pixels, published to CSS so lengths that belong
+  // to the game are stated in radii and survive the level-change zoom. On the
+  // document element rather than the stage: the paper's grid is one radius to
+  // the square and the ruler graduates in radii, and neither of those is drawn
+  // on the stage.
+  const root = surface.container.ownerDocument.documentElement;
+  root.style.setProperty("--r", `${BALL_RADIUS * view.scale}px`);
   // The wall is simulated, not decorative, so its width comes from the rules
   // rather than from the stylesheet. Drawn and settled against the same number.
-  surface.container.style.setProperty("--wall", `${WALL_WIDTH * view.scale}px`);
+  root.style.setProperty("--wall", `${WALL_WIDTH * view.scale}px`);
 
   const diameter = 2 * BALL_RADIUS * view.scale;
   for (let i = 0; i < balls.length; i++) {
@@ -76,9 +78,10 @@ export function render(
     element.style.height = `${diameter}px`;
     element.style.transform = `translate(${screen.x - diameter / 2}px, ${screen.y - diameter / 2}px)`;
     // How high this ball is, from 0 on the plane to 1 at carry height. The view
-    // is orthographic, so height cannot change a ball's size --- the shadow is
-    // the only thing that can say how far off the plane it is, which is why the
-    // palette went light enough for a shadow to show in the first place.
+    // is orthographic, so height cannot change a ball's size, and the drawing
+    // has no light in it, so nothing on screen says how far off the plane a
+    // ball is. Published anyway: it is what the render was given, and it is
+    // where a test reads the carry height back out of.
     const height = raised && raised.index === i ? raised.height / CARRY_HEIGHT : 0;
     element.style.setProperty("--h", `${height}`);
     // A ball off the plane is above the arrangement, so it draws above it too.

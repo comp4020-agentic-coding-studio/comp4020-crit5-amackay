@@ -207,7 +207,14 @@ function makeRow(doc: Document): HTMLButtonElement {
   row.type = "button";
   row.className = "level";
   row.append(makeSpan(doc, "index"), makeSpan(doc, "bar"));
-  for (let i = 0; i < 3; i++) row.append(makeSpan(doc, "notch"));
+  // Tightest first, and each in a lane of its own: at one shared scale the low
+  // levels' three thresholds land within a few pixels of each other, so three
+  // stars all on the bar's centre line are one blot.
+  for (let i = 0; i < 3; i++) {
+    const notch = makeSpan(doc, "notch");
+    notch.style.setProperty("--rank", `${3 - i}`);
+    row.append(notch);
+  }
   row.append(makeSpan(doc, "lock"));
   return row;
 }

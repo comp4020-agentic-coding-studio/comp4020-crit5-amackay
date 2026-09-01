@@ -39,9 +39,9 @@ const rows = histogramRows(newSession());
           >
             <span class="index">{row.n}</span>
             <span class="bar" />
-            <span class="notch" style={`--at: ${row.notches.three}`} />
-            <span class="notch" style={`--at: ${row.notches.two}`} />
-            <span class="notch" style={`--at: ${row.notches.one}`} />
+            <span class="notch" style={`--at: ${row.notches.three}; --rank: 3`} />
+            <span class="notch" style={`--at: ${row.notches.two}; --rank: 2`} />
+            <span class="notch" style={`--at: ${row.notches.one}; --rank: 1`} />
             <span class="lock" />
           </button>
         ))
