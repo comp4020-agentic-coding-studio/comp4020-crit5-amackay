@@ -486,13 +486,16 @@ describe("level select and advancing", () => {
     game.destroy();
   });
 
-  it("keeps a goal row for the level being played", () => {
+  it("keeps a size bar drawn at the box's own scale", () => {
+    // The alignment the bar exists for, read off the mounted game rather than
+    // off a fabricated Gauge: --now has to be the same offset from the centre
+    // that render.ts drew the box's right interior face at.
     const game = createGame(container, { session: newSession(4), size: SIZE });
     game.step();
-    const rows = document.querySelectorAll<HTMLElement>("#goal .level");
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.dataset.n).toBe("4");
-    expect(document.querySelectorAll("#goal .notch.is-goal")).toHaveLength(1);
+    const gauge = document.querySelector<HTMLElement>("#gauge")!;
+    const expected = (game.session.side / 2) * game.view.scale;
+    expect(gauge.style.getPropertyValue("--now")).toBe(`${expected}px`);
+    expect(document.querySelectorAll("#gauge .tick")).toHaveLength(3);
     game.destroy();
   });
 

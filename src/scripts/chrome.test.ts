@@ -3,12 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createChrome,
   renderAdvance,
-  renderGoal,
+  renderGauge,
   renderLevels,
   renderScreen,
 } from "./chrome";
 import { histogramRows } from "../game/histogram";
-import { play, playTo } from "../game/progress.test-helper";
+import { playTo } from "../game/progress.test-helper";
+import { thresholds } from "../game/score";
 import { newSession } from "../game/session";
 import { MAX_LEVEL } from "../game/types";
 
@@ -122,40 +123,71 @@ describe("renderAdvance", () => {
   });
 });
 
-describe("the goal row", () => {
-  it("draws the level being played and nothing else", () => {
-    const { goal } = createChrome(document);
-    const rows = histogramRows(playTo(3));
-    renderGoal(goal, rows.find((row) => row.current));
-    const drawn = goal.querySelectorAll(".level");
-    expect(drawn).toHaveLength(1);
-    expect(drawn[0]!.getAttribute("data-n")).toBe("3");
-    expect(goal.textContent?.trim()).toBe("");
+describe("the size bar", () => {
+  const SCALE = 40;
+
+  function gauge(side: number, level = 3, fits = true) {
+    const t = thresholds(level);
+    return {
+      scale: SCALE,
+      side,
+      thresholds: [t.three, t.two, t.one] as const,
+      fits,
+      boxTop: 300 - (side / 2) * SCALE,
+      barBottom: 72,
+    };
+  }
+
+  it("puts the mark at the box's half-width in pixels, which is where the box's face is", () => {
+    // The whole point of the bar: its left edge is the box's centre and it runs
+    // at the box's own scale, so `--now` is the same screen offset the right
+    // interior face is drawn at. Not a resemblance --- the same number.
+    const { gauge: el, tie } = createChrome(document);
+    renderGauge(el, tie, gauge(6));
+    expect(el.style.getPropertyValue("--now")).toBe(`${(6 / 2) * SCALE}px`);
+    expect(tie.style.getPropertyValue("--at")).toBe(`${(6 / 2) * SCALE}px`);
   });
 
-  it("takes its bar from the box on screen, not from a recorded best", () => {
-    const { goal } = createChrome(document);
-    const session = playTo(3);
-    const row = histogramRows(session).find((r) => r.current)!;
-    renderGoal(goal, row);
-    const drawn = goal.querySelector<HTMLElement>(".level")!;
-    expect(row.bestFraction).toBeNull();
-    expect(drawn.style.getPropertyValue("--bar")).toBe(`${row.nowFraction}`);
+  it("puts each star at the size that earns it, tightest first and leftmost", () => {
+    const { gauge: el, tie } = createChrome(document);
+    renderGauge(el, tie, gauge(6));
+    const t = thresholds(3);
+    const at = [...el.querySelectorAll<HTMLElement>(".tick")].map((tick) =>
+      Number.parseFloat(tick.style.getPropertyValue("--at")),
+    );
+    expect(at).toEqual([t.three, t.two, t.one].map((size) => (size / 2) * SCALE));
+    expect(at[0]).toBeLessThan(at[1]!);
+    expect(at[1]).toBeLessThan(at[2]!);
   });
 
-  it("marks the bar when what is in the box does not fit it", () => {
-    const { goal } = createChrome(document);
-    const opened = histogramRows(playTo(3)).find((r) => r.current)!;
-    renderGoal(goal, opened);
-    expect(goal.querySelector(".level")!.classList.contains("is-unfit")).toBe(true);
-    renderGoal(goal, histogramRows(play(playTo(3))).find((r) => r.current)!);
-    expect(goal.querySelector(".level")!.classList.contains("is-unfit")).toBe(false);
+  it("hollows the fill out when what is in the box does not fit it", () => {
+    const { gauge: el, tie } = createChrome(document);
+    renderGauge(el, tie, gauge(6, 3, false));
+    expect(el.classList.contains("is-unfit")).toBe(true);
+    renderGauge(el, tie, gauge(6, 3, true));
+    expect(el.classList.contains("is-unfit")).toBe(false);
   });
 
-  it("marks exactly one notch as the goal", () => {
-    const { goal } = createChrome(document);
-    renderGoal(goal, histogramRows(playTo(3)).find((r) => r.current));
-    expect(goal.querySelectorAll(".notch.is-goal")).toHaveLength(1);
+  it("runs the tie from the bar down to the box and no further", () => {
+    const { gauge: el, tie } = createChrome(document);
+    renderGauge(el, tie, gauge(6));
+    expect(tie.style.getPropertyValue("--top")).toBe("72px");
+    expect(tie.style.getPropertyValue("--length")).toBe(`${300 - 3 * SCALE - 72}px`);
+  });
+
+  it("never gives the tie a negative length", () => {
+    // A box taller than the play space cannot happen, but a zero-sized surface
+    // under jsdom puts boxTop above the bar, and a negative height is a CSS
+    // value the browser silently drops rather than an error anyone would see.
+    const { gauge: el, tie } = createChrome(document);
+    renderGauge(el, tie, { ...gauge(6), boxTop: 0 });
+    expect(tie.style.getPropertyValue("--length")).toBe("0px");
+  });
+
+  it("writes no text", () => {
+    const { gauge: el, tie } = createChrome(document);
+    renderGauge(el, tie, gauge(6));
+    expect(el.textContent?.trim()).toBe("");
   });
 });
 
@@ -166,13 +198,13 @@ describe("renderScreen", () => {
     expect(chrome.screen.hidden).toBe(true);
     expect(chrome.pick.hidden).toBe(false);
     expect(chrome.back.hidden).toBe(true);
-    expect(chrome.goal.hidden).toBe(false);
+    expect(chrome.gauge.hidden).toBe(false);
 
     renderScreen(chrome, true);
     expect(chrome.screen.hidden).toBe(false);
     expect(chrome.pick.hidden).toBe(true);
     expect(chrome.back.hidden).toBe(false);
     // The screen carries a row for the current level itself.
-    expect(chrome.goal.hidden).toBe(true);
+    expect(chrome.gauge.hidden).toBe(true);
   });
 });

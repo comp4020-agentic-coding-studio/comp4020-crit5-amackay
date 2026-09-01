@@ -11,8 +11,10 @@ export interface Chrome {
   screen: HTMLElement;
   /** The list of levels inside that screen. */
   levels: HTMLElement;
-  /** The current level's row, which stays on the game screen. */
-  goal: HTMLElement;
+  /** The size bar: a half-scale ruler of the box, in the top bar. */
+  gauge: HTMLElement;
+  /** The dotted line tying the size bar's mark to the box's right face. */
+  tie: HTMLElement;
   /** Opens the level-select screen. */
   pick: HTMLButtonElement;
   /** Closes it again. */
@@ -34,15 +36,29 @@ export function createChrome(doc: Document): Chrome {
     doc.querySelector<HTMLElement>("#levels") ?? appendTo(doc, screen, "nav", "levels");
   levels.setAttribute("aria-label", "Levels");
 
-  const goal =
-    doc.querySelector<HTMLElement>("#goal") ?? appendTo(doc, doc.body, "div", "goal");
+  const gauge =
+    doc.querySelector<HTMLElement>("#gauge") ?? appendTo(doc, doc.body, "div", "gauge");
+  if (!gauge.querySelector(".track")) {
+    gauge.append(makeSpan(doc, "track"), makeSpan(doc, "fill"), makeSpan(doc, "mark"));
+    // Three stars, tightest first, each in a lane of its own. Not conditional
+    // on them overlapping: two and three stars are 6% of the optimum apart,
+    // which on a phone is four pixels at every level in the game, so a rule
+    // that only stacked them when they collided would be stacking them always.
+    for (const rank of [3, 2, 1]) {
+      const tick = makeSpan(doc, "tick");
+      tick.dataset.rank = String(rank);
+      gauge.append(tick);
+    }
+  }
+
+  const tie = doc.querySelector<HTMLElement>("#tie") ?? appendTo(doc, doc.body, "div", "tie");
 
   const pick = button(doc, "pick", "Levels");
   const back = button(doc, "back", "Back to the game");
   const advance = button(doc, "advance", "Next level");
   advance.hidden = true;
 
-  return { screen, levels, goal, pick, back, advance };
+  return { screen, levels, gauge, tie, pick, back, advance };
 }
 
 /** Find or make one of the chrome's buttons, and name it for a screen reader. */
@@ -104,35 +120,52 @@ export function renderLevels(
   });
 }
 
-/**
- * The one row that stays on the game screen: the level being played, with the
- * notch it is aiming at picked out from the other two. Not an anchor --- the
- * level you are on is not somewhere to navigate to, and on level one selecting
- * it would start the level over.
- */
-export function renderGoal(el: HTMLElement, row: HistogramRow | undefined): void {
-  if (!row) {
-    el.replaceChildren();
-    return;
-  }
-  let track = el.querySelector<HTMLElement>(".level");
-  if (!track) {
-    track = makeRow(el.ownerDocument, "div");
-    el.replaceChildren(track);
-  }
-  fillRow(track, row);
-  // The game screen's row is a gauge, not a record: its bar is the box as it
-  // is now, read against the notch it is being closed towards.
-  if (row.nowFraction == null) track.style.removeProperty("--bar");
-  else track.style.setProperty("--bar", `${row.nowFraction}`);
-  // A bar shorter than the mark means the box is small enough --- but only if
-  // what is in it fits. Marked, so the gauge cannot read as won when the
-  // circles are still overlapping.
-  track.classList.toggle("is-unfit", !row.fits);
-  track.setAttribute("aria-label", `Level ${row.n}`);
+export interface Gauge {
+  /** Screen pixels per ball radius: the box's own scale, not the bar's. */
+  scale: number;
+  /** The box's interior side, in radii. */
+  side: number;
+  /** The three star thresholds in radii, tightest first. */
+  thresholds: readonly [number, number, number];
+  /** Whether the arrangement actually fits the box on screen. */
+  fits: boolean;
+  /** Screen y of the top of the box's interior. */
+  boxTop: number;
+  /** Screen y the tie starts from: the bottom of the top bar. */
+  barBottom: number;
 }
 
-function makeRow(doc: Document, tag: "a" | "div"): HTMLElement {
+/**
+ * The size bar. Its left edge is the viewport's centre, which is the box's
+ * centre, and it runs right at exactly the box's own scale --- so it is a
+ * half-scale drawing of the box's width, and the mark on it sits at the same
+ * screen x as the box's right interior face. The dotted tie is that alignment
+ * made visible rather than asserted.
+ *
+ * Everything here is written in pixels from the bar's left edge. Nothing is
+ * read back: the two screen positions the tie needs are handed in, because the
+ * only thing that knows them is the transform the box was drawn with.
+ */
+export function renderGauge(el: HTMLElement, tie: HTMLElement, g: Gauge): void {
+  const now = (g.side / 2) * g.scale;
+  el.style.setProperty("--now", `${now}px`);
+  // A mark short of a star means the box is small enough --- but only if what
+  // is in it fits. Hollowed out rather than recoloured when it does not: the
+  // fill is what says "this much is settled", and nothing is.
+  el.classList.toggle("is-unfit", !g.fits);
+
+  const ticks = el.querySelectorAll<HTMLElement>(".tick");
+  const at = g.thresholds;
+  ticks.forEach((tick, k) => {
+    tick.style.setProperty("--at", `${(at[k]! / 2) * g.scale}px`);
+  });
+
+  tie.style.setProperty("--at", `${now}px`);
+  tie.style.setProperty("--top", `${g.barBottom}px`);
+  tie.style.setProperty("--length", `${Math.max(0, g.boxTop - g.barBottom)}px`);
+}
+
+function makeRow(doc: Document, tag: "a"): HTMLElement {
   const row = doc.createElement(tag);
   row.className = "level";
   row.append(makeSpan(doc, "bar"));
@@ -141,7 +174,7 @@ function makeRow(doc: Document, tag: "a" | "div"): HTMLElement {
   return row;
 }
 
-/** Everything a row draws, shared by the screen's rows and the goal row. */
+/** Everything a level-screen row draws. */
 function fillRow(el: HTMLElement, row: HistogramRow): void {
   el.dataset.n = String(row.n);
   if (row.bestFraction == null) el.style.removeProperty("--bar");
@@ -168,14 +201,15 @@ export function renderAdvance(button: HTMLButtonElement, visible: boolean): void
 
 /**
  * Open or close the level-select screen. Everything under it stays running ---
- * only what would be read *through* it is taken down, which is the goal row:
+ *  only what would be read *through* it is taken down, which is the size bar:
  * the screen has a row for the current level of its own.
  */
 export function renderScreen(chrome: Chrome, open: boolean): void {
   chrome.screen.hidden = !open;
   chrome.back.hidden = !open;
   chrome.pick.hidden = open;
-  chrome.goal.hidden = open;
+  chrome.gauge.hidden = open;
+  chrome.tie.hidden = open;
 }
 
 function makeSpan(doc: Document, className: string): HTMLElement {

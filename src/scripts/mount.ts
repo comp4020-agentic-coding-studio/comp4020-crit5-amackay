@@ -20,12 +20,12 @@ import {
   type Extent,
   type ViewTransform,
 } from "../game/view";
-import { par } from "../game/score";
+import { par, thresholds } from "../game/score";
 import { BALL_RADIUS, MAX_LEVEL, type Ball, type Side } from "../game/types";
 import {
   createChrome,
   renderAdvance,
-  renderGoal,
+  renderGauge,
   renderLevels,
   renderScreen,
   type Chrome,
@@ -254,6 +254,8 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   }
 
   let bounds: { x: number; y: number } | null = null;
+  /** Height of one chrome bar, in screen pixels: where the tie starts. */
+  let barHeight = 0;
   /**
    * The largest side a drag on the handle may reach: the side whose outer wall
    * faces land on the frame's edge. A drag beyond this would push the box, and
@@ -270,6 +272,10 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   function refreshView(): void {
     const stage = measureStage();
     const play = measurePlay();
+    // The bars are equal, so what the play space gave up vertically is two of
+    // them --- which is where the tie has to start from. Derived rather than
+    // read off the stylesheet: both numbers are already measured.
+    barHeight = Math.max(0, (stage.height - play.height) / 2);
     const target = fitView(par(session.level), play, stage);
     // Only the scale is eased; the origin is just the surface centre, so it is
     // always taken live. maxSide and bounds jump straight to the new level ---
@@ -303,9 +309,16 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
 
   function draw(): void {
     render(surface, session.balls, session.side, view, raisedBall());
-    const rows = histogramRows(session);
-    renderLevels(chrome.levels, rows, { onSelect: goToLevel });
-    renderGoal(chrome.goal, rows.find((row) => row.current));
+    renderLevels(chrome.levels, histogramRows(session), { onSelect: goToLevel });
+    const t = thresholds(session.level);
+    renderGauge(chrome.gauge, chrome.tie, {
+      scale: view.scale,
+      side: session.side,
+      thresholds: [t.three, t.two, t.one],
+      fits: fitsNow(session.balls, session.side),
+      boxTop: view.originY - (session.side / 2) * view.scale,
+      barBottom: barHeight,
+    });
     renderScreen(chrome, picking);
     renderAdvance(chrome.advance, canAdvance() && !picking);
   }

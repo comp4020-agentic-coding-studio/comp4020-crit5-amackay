@@ -280,24 +280,120 @@ h1 {
   cursor: pointer;
 }
 
-/* The one row that stays on the game screen: the level being played. Its left
-   edge is the viewport's centre, which is the box's centre --- the alignment
-   the size bar is built on. */
-#goal {
+/* The size bar. Its left edge is the viewport's centre, which is the box's
+   centre, and it runs right at exactly the box's own scale --- so it is a
+   half-scale drawing of the box's width and nothing on it needs a number. The
+   mark sits at the same screen x as the box's right interior face; #tie draws
+   that alignment rather than leaving it to be noticed.
+
+   Every position inside is a pixel length written by chrome.ts: --now for the
+   box as it stands, --at on each star for the size that earns it. */
+#gauge {
   position: absolute;
   left: 50%;
   right: var(--gutter);
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
+  top: 0;
+  bottom: 0;
+  --now: 0px;
+  --star: 11px;
 }
 
-#goal .level {
-  width: 100%;
+#gauge[hidden] {
+  display: none;
+}
+
+/* The ruler itself, running the full width available: past the mark is the
+   room the box could still be given, which is worth being able to see. */
+#gauge .track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 1rem;
   height: 12px;
   border-radius: 3px;
   background: rgb(var(--shadow) / 20%);
-  cursor: default;
+}
+
+#gauge .fill {
+  position: absolute;
+  left: 0;
+  bottom: 1rem;
+  width: var(--now);
+  height: 12px;
+  border-radius: 3px;
+  background: var(--card-wall);
+}
+
+/* The box is smaller than a star, but the circles do not fit in it --- so the
+   bar is not an achievement yet. Hollowed out rather than recoloured: the fill
+   is what says "this much is settled", and nothing is. */
+#gauge.is-unfit .fill {
+  background: none;
+  box-shadow: inset 0 0 0 2px var(--card-wall);
+  opacity: 0.55;
+}
+
+#gauge .mark {
+  position: absolute;
+  left: var(--now);
+  bottom: calc(1rem - 4px);
+  width: 2px;
+  height: 20px;
+  margin-left: -1px;
+  background: var(--ink);
+}
+
+/* The three star sizes, each in a lane of its own. They climb as they tighten,
+   so the three of them read left-to-right and down as easier, and the one
+   nearest the mark is the one still to beat. */
+#gauge .tick {
+  position: absolute;
+  left: var(--at, 0px);
+  /* Stacked up off the top of the track: 1rem to its underside, 12px of track,
+     2px clear, then one lane per star. Three lanes of --star have to fit in
+     what is left of --bar-h above the track, which is what --star is sized
+     against --- at 11px the top lane starts 5px below the bar. */
+  bottom: calc(1rem + 14px + (var(--rank) - 1) * (var(--star) + 2px));
+  width: var(--star);
+  height: var(--star);
+  margin-left: calc(var(--star) / -2);
+  background: var(--ink);
+  opacity: 0.62;
+  clip-path: polygon(
+    50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%,
+    50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%
+  );
+}
+
+/* A shorter bar has less room above the track for the three lanes. After the
+   rule that sets --star, not with the other bar sizes, or the two collide at
+   equal specificity and the later one wins whatever the viewport is. */
+@media (max-width: 35rem) {
+  #gauge {
+    --star: 9px;
+  }
+}
+
+#gauge .tick[data-rank="3"] { --rank: 3; }
+#gauge .tick[data-rank="2"] { --rank: 2; }
+#gauge .tick[data-rank="1"] { --rank: 1; }
+
+/* The linkage: a dotted line from the size bar's mark down to the box's top
+   right interior corner, at the one screen x they share. */
+#tie {
+  position: fixed;
+  left: calc(50% + var(--at, 0px));
+  top: var(--top, 0px);
+  height: var(--length, 0px);
+  width: 0;
+  border-left: 2px dotted rgb(var(--shadow) / 45%);
+  margin-left: -1px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+#tie[hidden] {
+  display: none;
 }
 
 .level .bar {
@@ -317,19 +413,6 @@ h1 {
   left: calc(var(--at) * 100%);
   width: 1px;
   background: rgb(255 255 255 / 40%);
-}
-
-#goal .notch {
-  background: rgb(var(--shadow) / 45%);
-}
-
-/* The box is smaller than the mark, but the circles do not fit in it --- so the
-   bar is not an achievement yet. Hollowed out rather than recoloured: the fill
-   is what says "this much is settled", and nothing is. */
-#goal .level.is-unfit .bar {
-  background: none;
-  box-shadow: inset 0 0 0 2px var(--card-wall);
-  opacity: 0.55;
 }
 
 /* The goal: the tightest threshold the box has not reached yet, picked out

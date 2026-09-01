@@ -59,8 +59,17 @@ const rows = histogramRows(newSession());
 
   <div id="top">
     <button class="pick" type="button" aria-label="Levels"></button>
-    <div id="goal"></div>
+    <div id="gauge">
+      <span class="track"></span>
+      <span class="fill"></span>
+      <span class="mark"></span>
+      <span class="tick" data-rank="3"></span>
+      <span class="tick" data-rank="2"></span>
+      <span class="tick" data-rank="1"></span>
+    </div>
   </div>
+
+  <div id="tie"></div>
 
   <div id="foot">
     <button class="advance" type="button" aria-label="Next level" hidden></button>
