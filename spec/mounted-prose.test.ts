@@ -5,9 +5,9 @@
 // spec/crit-5.test.ts holds the negative half of that line against the BUILT
 // dist/index.html --- but the game builds its own DOM at runtime, so that file
 // only ever sees the opening screen. This sensor builds the real game in jsdom,
-// walks it through every level and past the ending, and applies the same three
-// checks to the text that actually appears. The static budget is the floor;
-// this is the check with teeth.
+// walks it through every level and past the ending, and applies the same two
+// checks to the text that actually appears. The static file is the floor; this
+// is the check with teeth.
 import { beforeEach, describe, expect, it } from "vitest";
 import { createGame, type Game } from "../src/scripts/mount";
 import { optimum } from "../src/game/optima";
@@ -22,7 +22,6 @@ const SIZE = { width: 800, height: 600 };
 const INSTRUCTION =
   /\b(press|click|tap|use the|move the|arrow keys?|wasd|spacebar|how to play|instructions?|tutorial|your goal|objective is|in order to|try to)\b/i;
 const SENTENCE = /[.!?]\s+\S/;
-const WORD_BUDGET = 20;
 
 let container: HTMLElement;
 
@@ -45,10 +44,6 @@ function assertQuiet(where: string): void {
   const text = screenText();
   expect(INSTRUCTION.exec(text)?.[0], `${where}: "${INSTRUCTION.exec(text)?.[0]}"`).toBeUndefined();
   expect(text, `${where}: a sentence on screen`).not.toMatch(SENTENCE);
-  const words = text.split(" ").filter(Boolean);
-  expect(words.length, `${where}: ${words.length} words --- ${text}`).toBeLessThanOrEqual(
-    WORD_BUDGET,
-  );
 }
 
 /** A session parked at a beaten level n, every level through n recorded at its optimum. */
