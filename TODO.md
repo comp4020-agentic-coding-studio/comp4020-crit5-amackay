@@ -5,9 +5,6 @@ not by what is most interesting. Kept current as decisions are made.
 
 ## Now — nothing else counts until these are done
 
-- [ ] **`public/card.png`** is still the starter card, and the `description`
-      meta goes with it. It resolves live, so nothing is red --- but it is what
-      a link to the site looks like in the course gallery.
 - [ ] **`PLAYTEST_START_LEVEL` back to 1** (`src/scripts/main.ts`). One line,
       already marked TEMPORARY. Also fixes the disagreement between the
       server-rendered opening screen (level 1) and what hydration opens.
@@ -47,8 +44,8 @@ not by what is most interesting. Kept current as decisions are made.
       handle arrow reading in / out / both according to whether the box can
       still close. These are one visual language, cheaper together than apart,
       and the largest destabilising diff on the list.
-- [ ] **Rename to "Bounding Box"** — title, `description` meta, and the ending
-      wording.
+- [ ] **The ending wording.** `FINISH_TEXT` is the last of the rename; the
+      title, `h1` and `description` are done.
 
 ## Needs a decision before any code
 
@@ -77,6 +74,12 @@ not by what is most interesting. Kept current as decisions are made.
   before the cutoff.
 
 ## Closed
+
+- **The share card, the tab icon, and the head metadata.** Both pictures are
+  screenshots of `/card.html` and `/icon.html`, which draw a compacted
+  arrangement with the game's own stylesheet and `render.ts`; `pnpm images`
+  re-takes them and `scripts/check-images.ts` says when they are stale. The
+  game is named Bounding Box in the title, the `h1` and the description.
 
 - **Shipped.** Repo public, Pages enabled as a workflow site, `checks` green
   (`check` and `deploy` both), live at
