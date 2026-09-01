@@ -7,7 +7,9 @@ import type { HistogramRow } from "../game/histogram";
 // so never appears on screen.
 
 export interface Chrome {
-  /** The level-select screen: every level in the game, hidden until opened. */
+  /** The level-select screen: the game's title and every level in it. */
+  screen: HTMLElement;
+  /** The list of levels inside that screen. */
   levels: HTMLElement;
   /** The current level's row, which stays on the game screen. */
   goal: HTMLElement;
@@ -16,19 +18,21 @@ export interface Chrome {
   /** Closes it again. */
   back: HTMLButtonElement;
   advance: HTMLButtonElement;
-  finish: HTMLElement;
 }
 
 /**
- * Find the three chrome elements, creating and appending any that are missing.
- * The real page server-renders all three so they are adopted in place with no
+ * Find the chrome elements, creating and appending any that are missing. The
+ * real page server-renders them all so they are adopted in place with no
  * reflash; a bare test container has none, so they are made on the spot.
  */
 export function createChrome(doc: Document): Chrome {
+  const screen =
+    doc.querySelector<HTMLElement>("#screen") ?? appendTo(doc, doc.body, "div", "screen");
+  screen.hidden = true;
+
   const levels =
-    doc.querySelector<HTMLElement>("#levels") ?? appendTo(doc, doc.body, "nav", "levels");
+    doc.querySelector<HTMLElement>("#levels") ?? appendTo(doc, screen, "nav", "levels");
   levels.setAttribute("aria-label", "Levels");
-  levels.hidden = true;
 
   const goal =
     doc.querySelector<HTMLElement>("#goal") ?? appendTo(doc, doc.body, "div", "goal");
@@ -38,10 +42,7 @@ export function createChrome(doc: Document): Chrome {
   const advance = button(doc, "advance", "Next level");
   advance.hidden = true;
 
-  const finish =
-    doc.querySelector<HTMLElement>("#finish") ?? appendTo(doc, doc.body, "div", "finish");
-
-  return { levels, goal, pick, back, advance, finish };
+  return { screen, levels, goal, pick, back, advance };
 }
 
 /** Find or make one of the chrome's buttons, and name it for a screen reader. */
@@ -171,15 +172,10 @@ export function renderAdvance(button: HTMLButtonElement, visible: boolean): void
  * the screen has a row for the current level of its own.
  */
 export function renderScreen(chrome: Chrome, open: boolean): void {
-  chrome.levels.hidden = !open;
+  chrome.screen.hidden = !open;
   chrome.back.hidden = !open;
   chrome.pick.hidden = open;
   chrome.goal.hidden = open;
-}
-
-/** The one place the chrome writes visible text: the finish fragment. */
-export function renderFinish(el: HTMLElement, finished: boolean, text: string): void {
-  el.textContent = finished ? text : "";
 }
 
 function makeSpan(doc: Document, className: string): HTMLElement {

@@ -18,33 +18,54 @@ const rows = histogramRows(newSession());
   title="Bounding Box"
   description="A puzzle about packing circles into a square. Rearrange the circles, then find the smallest box that still fits them all."
 >
-  <nav aria-label="Levels" id="levels" hidden>
-    {
-      rows.map((row) => (
-        <a
-          class:list={["level", { "is-current": row.current, "is-locked": row.locked }]}
-          data-n={row.n}
-          aria-label={row.locked ? `Level ${row.n}, locked` : `Level ${row.n}`}
-          aria-current={row.current ? "step" : undefined}
-          style={row.bestFraction != null ? `--bar: ${row.bestFraction}` : undefined}
-        >
-          <span class="bar" />
-          <span class="notch" style={`--at: ${row.notches.three}`} />
-          <span class="notch" style={`--at: ${row.notches.two}`} />
-          <span class="notch" style={`--at: ${row.notches.one}`} />
-          <span class="lock" />
-        </a>
-      ))
-    }
-  </nav>
-  <main>
+  {/*
+    The level screen owns the game's name: it is the one screen with room for
+    a title, and the game screen is the game. So the document's single h1 lives
+    here rather than over the box.
+  */}
+  <div id="screen" hidden>
     <h1>Bounding Box</h1>
+    <nav aria-label="Levels" id="levels">
+      {
+        rows.map((row) => (
+          <a
+            class:list={["level", { "is-current": row.current, "is-locked": row.locked }]}
+            data-n={row.n}
+            aria-label={row.locked ? `Level ${row.n}, locked` : `Level ${row.n}`}
+            aria-current={row.current ? "step" : undefined}
+            style={row.bestFraction != null ? `--bar: ${row.bestFraction}` : undefined}
+          >
+            <span class="bar" />
+            <span class="notch" style={`--at: ${row.notches.three}`} />
+            <span class="notch" style={`--at: ${row.notches.two}`} />
+            <span class="notch" style={`--at: ${row.notches.one}`} />
+            <span class="lock" />
+          </a>
+        ))
+      }
+    </nav>
+  </div>
+
+  <main>
     <div id="stage"></div>
   </main>
-  <div id="goal"></div>
-  <button class="pick" type="button" aria-label="Levels"></button>
+
+  {/*
+    The room left for the game once the two chrome bars have taken theirs.
+    Nothing is drawn in it --- it exists so the view's scale can be measured off
+    the layout rather than recomputed from the bar heights in script.
+  */}
+  <div id="play"></div>
+
+  <div id="top">
+    <button class="pick" type="button" aria-label="Levels"></button>
+    <div id="goal"></div>
+  </div>
+
+  <div id="foot">
+    <button class="advance" type="button" aria-label="Next level" hidden></button>
+  </div>
+
   <button class="back" type="button" aria-label="Back to the game" hidden></button>
-  <button class="advance" type="button" aria-label="Next level" hidden></button>
-  <div id="finish"></div>
   <script src="../scripts/main.ts"></script>
 </Layout>

@@ -25,7 +25,6 @@ import { BALL_RADIUS, MAX_LEVEL, type Ball, type Side } from "../game/types";
 import {
   createChrome,
   renderAdvance,
-  renderFinish,
   renderGoal,
   renderLevels,
   renderScreen,
@@ -128,13 +127,6 @@ function smoothstep(t: number): number {
 function lerp(from: number, to: number, k: number): number {
   return from + (to - from) * k;
 }
-
-/**
- * What the screen says once the core sequence is done. A fragment, not a
- * sentence, and clear of the instruction words the spec forbids. The one place
- * the chrome writes visible text. Placeholder wording pending the owner's.
- */
-const FINISH_TEXT = "ten levels, tighter";
 
 export interface Game {
   /**
@@ -316,7 +308,6 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     renderGoal(chrome.goal, rows.find((row) => row.current));
     renderScreen(chrome, picking);
     renderAdvance(chrome.advance, canAdvance() && !picking);
-    renderFinish(chrome.finish, session.finished, FINISH_TEXT);
   }
 
   /** Open or close the level-select screen. The game underneath keeps running:
@@ -608,7 +599,6 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
       container.replaceChildren();
       chrome.levels.replaceChildren();
       chrome.advance.hidden = true;
-      chrome.finish.textContent = "";
     },
   };
 }

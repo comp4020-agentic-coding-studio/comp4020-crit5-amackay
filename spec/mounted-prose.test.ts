@@ -32,7 +32,7 @@ beforeEach(() => {
 
 /** Everything the chrome puts on screen, as one run of text. */
 function screenText(): string {
-  return ["#levels", "#goal", "button.pick", "button.back", "button.advance", "#finish"]
+  return ["#screen", "#goal", "button.pick", "button.back", "button.advance"]
     .map((sel) => document.querySelector(sel)?.textContent ?? "")
     .join(" ")
     .replace(/\s+/g, " ")
@@ -52,8 +52,7 @@ function assertQuiet(where: string): void {
  * into `bests` and the balls left where they started is not one.
  */
 function sessionAt(n: number): Session {
-  const session = play(playTo(n));
-  return { ...session, finished: n > CORE_SEQUENCE };
+  return play(playTo(n));
 }
 
 function settleFrames(game: Game, frames = 200): void {
@@ -94,7 +93,7 @@ describe("nothing on screen tells the player anything", () => {
     const game = createGame(container, { session: sessionAt(5), size: SIZE });
     game.step();
     document.querySelector<HTMLButtonElement>("button.pick")!.click();
-    expect(document.querySelector<HTMLElement>("#levels")!.hidden).toBe(false);
+    expect(document.querySelector<HTMLElement>("#screen")!.hidden).toBe(false);
     assertQuiet("the level screen");
     game.destroy();
   });

@@ -460,18 +460,18 @@ describe("level select and advancing", () => {
   it("opens the level screen and closes it again", () => {
     const game = beatenAt(3);
     game.step();
-    const levels = document.querySelector<HTMLElement>("#levels")!;
+    const screen = document.querySelector<HTMLElement>("#screen")!;
     const pick = document.querySelector<HTMLButtonElement>("button.pick")!;
     const back = document.querySelector<HTMLButtonElement>("button.back")!;
-    expect(levels.hidden).toBe(true);
+    expect(screen.hidden).toBe(true);
 
     pick.click();
-    expect(levels.hidden).toBe(false);
+    expect(screen.hidden).toBe(false);
     // The way onward belongs to the game, not to the screen over it.
     expect(document.querySelector<HTMLButtonElement>("button.advance")!.hidden).toBe(true);
 
     back.click();
-    expect(levels.hidden).toBe(true);
+    expect(screen.hidden).toBe(true);
     expect(document.querySelector<HTMLButtonElement>("button.advance")!.hidden).toBe(false);
     game.destroy();
   });
@@ -482,7 +482,7 @@ describe("level select and advancing", () => {
     document.querySelector<HTMLButtonElement>("button.pick")!.click();
     document.querySelectorAll<HTMLElement>("#levels a.level")[1]!.click();
     expect(game.session.level).toBe(2);
-    expect(document.querySelector<HTMLElement>("#levels")!.hidden).toBe(true);
+    expect(document.querySelector<HTMLElement>("#screen")!.hidden).toBe(true);
     game.destroy();
   });
 

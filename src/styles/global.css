@@ -25,7 +25,23 @@
 
   --r: 14px;
   --wall: 3px;
+
+  /* The screen is three bands: a chrome bar, the play space, a chrome bar. The
+     bars are equal so the play space stays centred on the viewport --- which
+     is what lets the box keep the viewport's own centre and the size bar start
+     at exactly 50%. --gutter is the same inset used down both sides, so the
+     play space is symmetric there too. */
+  --bar-h: 4.5rem;
+  --gutter: 1rem;
+  --disc: 56px;
   color-scheme: light;
+}
+
+@media (max-width: 35rem) {
+  :root {
+    --bar-h: 4rem;
+    --disc: 48px;
+  }
 }
 
 * {
@@ -59,18 +75,52 @@ main {
   display: block;
 }
 
-/* The title names the game and then gets out of the way; the game is the
-   whole screen. */
+/* The title belongs to the level screen, which is the one screen with room for
+   it. The game screen is the game. */
 h1 {
-  position: fixed;
-  top: 0.6rem;
-  left: 0.9rem;
-  margin: 0;
-  font-size: 0.95rem;
+  flex: none;
+  margin: 0 0 1.2rem;
+  font-size: 1.05rem;
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  opacity: 0.42;
+  color: #fff;
+  opacity: 0.72;
+}
+
+/* The room left for the game once the two bars have taken theirs. Nothing is
+   drawn in it: mount.ts measures it to get the view's scale, so the insets stay
+   here in the stylesheet rather than being recomputed in script. */
+#play {
+  position: fixed;
+  top: var(--bar-h);
+  bottom: var(--bar-h);
+  left: var(--gutter);
+  right: var(--gutter);
+  pointer-events: none;
+}
+
+/* The two chrome bars. They reserve their height whether or not anything is in
+   them --- the next-level button comes and goes, and a bar that collapsed with
+   it would resize the play space and re-zoom the whole game every time a level
+   was beaten. Nothing in a bar takes a pointer except the controls themselves,
+   so a drag that strays into one still reaches the stage underneath. */
+#top,
+#foot {
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: var(--bar-h);
+  z-index: 3;
+  pointer-events: none;
+}
+
+#top {
+  top: 0;
+}
+
+#foot {
+  bottom: 0;
 }
 
 #stage {
@@ -189,15 +239,14 @@ h1 {
    It is a sheet over the stage rather than a route: the game underneath keeps
    running, so there is no second page to build and nothing to restore on the
    way back. */
-#levels {
+#screen {
   position: fixed;
   inset: 0;
   z-index: 5;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  padding: 4rem 1rem 2rem;
+  padding: var(--bar-h) var(--gutter) 2rem;
   overflow-y: auto;
   overscroll-behavior: contain;
   /* Near-opaque, not a wash: the game showing through turned the rows into
@@ -206,8 +255,15 @@ h1 {
   background: rgb(var(--shadow) / 97%);
 }
 
-#levels[hidden] {
+#screen[hidden] {
   display: none;
+}
+
+#levels {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .level {
@@ -224,32 +280,24 @@ h1 {
   cursor: pointer;
 }
 
-/* The one row that stays on the game screen: the level being played. Low and
-   centred, clear of the next-level button in the corner. */
+/* The one row that stays on the game screen: the level being played. Its left
+   edge is the viewport's centre, which is the box's centre --- the alignment
+   the size bar is built on. */
 #goal {
-  position: fixed;
+  position: absolute;
   left: 50%;
-  bottom: 2.2rem;
-  transform: translateX(-50%);
-  z-index: 3;
+  right: var(--gutter);
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
 #goal .level {
-  width: 176px;
+  width: 100%;
   height: 12px;
   border-radius: 3px;
   background: rgb(var(--shadow) / 20%);
   cursor: default;
-}
-
-@media (max-width: 35rem) {
-  #goal {
-    bottom: 1.4rem;
-  }
-
-  #goal .level {
-    width: 132px;
-  }
 }
 
 .level .bar {
@@ -359,11 +407,12 @@ h1 {
 .advance,
 .pick,
 .back {
-  position: fixed;
-  right: 1.1rem;
-  bottom: 1.1rem;
-  width: 44px;
-  height: 44px;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: auto;
+  width: var(--disc);
+  height: var(--disc);
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -400,11 +449,15 @@ h1 {
 }
 
 /* Opens the level screen: three stacked tracks, which is what the screen is.
-   Top right, because the title sits in the top left and a disc dropped on top
-   of it reads as one thing covering another. */
+   The left end of the top bar --- nothing else is over there now that the title
+   has gone to the screen it names. */
 .pick {
-  bottom: auto;
-  top: 1.1rem;
+  left: var(--gutter);
+}
+
+/* The one thing in the bottom bar. */
+.advance {
+  right: var(--gutter);
 }
 
 .pick::after {
@@ -415,12 +468,12 @@ h1 {
   );
 }
 
-/* Closes it again: the chevron, pointing back the other way. */
+/* Closes it again: the chevron, pointing back the other way. Same slot the
+   menu button occupies on the game screen, so the two swap in place. */
 .back {
-  right: auto;
-  left: 1.1rem;
-  bottom: auto;
-  top: 1.1rem;
+  position: fixed;
+  left: var(--gutter);
+  top: calc(var(--bar-h) / 2);
   z-index: 6;
 }
 
@@ -428,26 +481,6 @@ h1 {
   clip-path: polygon(
     60% 28%, 50% 28%, 34% 50%, 50% 72%, 60% 72%, 46% 50%
   );
-}
-
-/* The finish: shown once the core sequence is done and then left up, in the
-   same quiet register as the title. The histogram writes no text at all, so
-   this fragment is the one place the chrome says anything. */
-#finish {
-  position: fixed;
-  top: 0.6rem;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.8rem;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  opacity: 0.5;
-  z-index: 3;
-}
-
-#finish:empty {
-  display: none;
 }
 
 /* The resize glyph itself, drawn on the fitting rather than left to the

@@ -97,12 +97,6 @@ describe("advancing", () => {
     }
   });
 
-  it("flags the core sequence finished on leaving level ten", () => {
-    let session = playTo(CORE_SEQUENCE);
-    expect(session.finished).toBe(false);
-    session = beat(session);
-    expect(session.finished).toBe(true);
-  });
 });
 
 describe("bests", () => {

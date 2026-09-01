@@ -1,6 +1,6 @@
 import { fitsNow } from "./compact";
 import { isComplete, par, stars, type Stars } from "./score";
-import { CORE_SEQUENCE, MAX_LEVEL, type Ball, type Side } from "./types";
+import { MAX_LEVEL, type Ball, type Side } from "./types";
 
 // Progression. Positions carry over between levels, and so does the box:
 // completing one adds a single extra ball in the middle of what is already
@@ -53,8 +53,6 @@ export interface Session {
   balls: Ball[];
   side: Side;
   bests: Record<number, Best>;
-  /** Set once the core sequence has been finished. */
-  finished: boolean;
 }
 
 export function newSession(level = 1): Session {
@@ -65,7 +63,6 @@ export function newSession(level = 1): Session {
     balls: startingBalls(start),
     side: openSide(start),
     bests: {},
-    finished: false,
   };
 }
 
@@ -126,7 +123,6 @@ export function advance(session: Session): Session {
     reached: Math.max(session.reached, level),
     balls: [...session.balls.map((b) => ({ ...b })), { x: 0, y: 0 }],
     side: session.side,
-    finished: session.finished || session.level >= CORE_SEQUENCE,
   };
 }
 
@@ -170,7 +166,6 @@ export interface StoredSession {
    */
   side?: Side;
   bests: Record<number, Best>;
-  finished: boolean;
 }
 
 export function serialise(session: Session): string {
@@ -180,7 +175,6 @@ export function serialise(session: Session): string {
     balls: session.balls,
     side: session.side,
     bests: session.bests,
-    finished: session.finished,
   };
   return JSON.stringify(stored);
 }
@@ -200,7 +194,6 @@ export function deserialise(raw: string | null): Session {
       balls,
       side: readSide(stored.side, level),
       bests: readBests(stored.bests),
-      finished: stored.finished === true,
     };
   } catch {
     return newSession();

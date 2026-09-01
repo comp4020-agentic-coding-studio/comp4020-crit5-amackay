@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createChrome,
   renderAdvance,
-  renderFinish,
   renderGoal,
   renderLevels,
   renderScreen,
@@ -18,21 +17,23 @@ beforeEach(() => {
 });
 
 describe("createChrome", () => {
-  it("creates the three elements when the page has none", () => {
-    const { levels, advance: button, finish } = createChrome(document);
+  it("creates the elements when the page has none", () => {
+    const { screen, levels, advance: button } = createChrome(document);
+    expect(screen.id).toBe("screen");
     expect(levels.id).toBe("levels");
+    expect(levels.parentElement).toBe(screen);
     expect(levels.getAttribute("aria-label")).toBe("Levels");
     expect(button.className).toBe("advance");
     expect(button.hidden).toBe(true);
-    expect(finish.id).toBe("finish");
   });
 
   it("adopts elements the page already server-rendered", () => {
-    document.body.innerHTML = `<nav id="levels"><a class="level"></a></nav>
-      <button class="advance"></button><div id="finish"></div>`;
-    const { levels } = createChrome(document);
+    document.body.innerHTML = `<div id="screen"><nav id="levels"><a class="level"></a></nav></div>
+      <button class="advance"></button>`;
+    const { screen, levels } = createChrome(document);
     expect(document.querySelectorAll("#levels").length).toBe(1);
     expect(levels.querySelectorAll("a.level").length).toBe(1);
+    expect(levels.parentElement).toBe(screen);
   });
 
   it("wires a click onto the server-rendered row, not just fresh ones", () => {
@@ -111,21 +112,13 @@ describe("renderLevels", () => {
   });
 });
 
-describe("renderAdvance and renderFinish", () => {
+describe("renderAdvance", () => {
   it("toggles the button's visibility", () => {
     const { advance: button } = createChrome(document);
     renderAdvance(button, true);
     expect(button.hidden).toBe(false);
     renderAdvance(button, false);
     expect(button.hidden).toBe(true);
-  });
-
-  it("sets the finish text only once finished, and clears it otherwise", () => {
-    const { finish } = createChrome(document);
-    renderFinish(finish, false, "done");
-    expect(finish.textContent).toBe("");
-    renderFinish(finish, true, "done");
-    expect(finish.textContent).toBe("done");
   });
 });
 
@@ -170,13 +163,13 @@ describe("renderScreen", () => {
   it("swaps the way in for the way out", () => {
     const chrome = createChrome(document);
     renderScreen(chrome, false);
-    expect(chrome.levels.hidden).toBe(true);
+    expect(chrome.screen.hidden).toBe(true);
     expect(chrome.pick.hidden).toBe(false);
     expect(chrome.back.hidden).toBe(true);
     expect(chrome.goal.hidden).toBe(false);
 
     renderScreen(chrome, true);
-    expect(chrome.levels.hidden).toBe(false);
+    expect(chrome.screen.hidden).toBe(false);
     expect(chrome.pick.hidden).toBe(true);
     expect(chrome.back.hidden).toBe(false);
     // The screen carries a row for the current level itself.
