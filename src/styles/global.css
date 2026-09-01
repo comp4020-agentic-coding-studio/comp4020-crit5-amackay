@@ -179,46 +179,76 @@ h1 {
     inset calc(var(--r) * 0.06) calc(var(--r) * 0.08) calc(var(--r) * 0.12) rgb(255 255 255 / 40%);
 }
 
-/* The level select: a stack of horizontal tracks down the right edge, one per
-   level reached. A track's fill is the player's best size as a fraction of the
-   widest square the game asks for, so a short bar is a tight pack and the stack
-   as a whole is the shape of the packing problem getting harder. The notches
-   are the star thresholds. Nothing here carries a number --- the bar lengths
-   are the reading, and a screen reader gets the level from aria-label. */
+/* The level select: its own screen, one track per level in the game. A track's
+   fill is the player's best size as a fraction of the widest square the game
+   asks for, so a short bar is a tight pack and the stack as a whole is the
+   shape of the packing problem getting harder. The notches are the star
+   thresholds. Nothing here carries a number --- the bar lengths are the
+   reading, and a screen reader gets the level from aria-label.
+
+   It is a sheet over the stage rather than a route: the game underneath keeps
+   running, so there is no second page to build and nothing to restore on the
+   way back. */
 #levels {
   position: fixed;
-  right: 0.55rem;
-  top: 50%;
-  transform: translateY(-50%);
+  inset: 0;
+  z-index: 5;
   display: flex;
   flex-direction: column;
-  gap: 0.18rem;
-  z-index: 3;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 4rem 1rem 2rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Near-opaque, not a wash: the game showing through turned the rows into
+     texture over a picture of a box, and a list you have to squint past is not
+     a screen. Still the shadow colour, so it reads as the same world. */
+  background: rgb(var(--shadow) / 97%);
+}
+
+#levels[hidden] {
+  display: none;
 }
 
 .level {
   position: relative;
   display: block;
-  width: 84px;
-  height: 9px;
-  border-radius: 2px;
-  background: rgb(var(--shadow) / 16%);
+  flex: none;
+  width: min(20rem, 78vw);
+  /* A row is a touch target before it is a bar, and twenty of them at this
+     height is taller than a phone --- which is what makes the list scroll
+     where it needs to rather than carrying a scroll bar for show. */
+  height: 40px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 17%);
   cursor: pointer;
 }
 
-/* On a phone the box fills the width, so the rail moves to the bottom-left
-   corner --- clear of the title above and of the box, which is centred. */
+/* The one row that stays on the game screen: the level being played. Low and
+   centred, clear of the next-level button in the corner. */
+#goal {
+  position: fixed;
+  left: 50%;
+  bottom: 2.2rem;
+  transform: translateX(-50%);
+  z-index: 3;
+}
+
+#goal .level {
+  width: 176px;
+  height: 12px;
+  border-radius: 3px;
+  background: rgb(var(--shadow) / 20%);
+  cursor: default;
+}
+
 @media (max-width: 35rem) {
-  #levels {
-    right: auto;
-    left: 0.4rem;
-    top: auto;
-    bottom: 0.5rem;
-    transform: none;
+  #goal {
+    bottom: 1.4rem;
   }
 
-  .level {
-    width: 62px;
+  #goal .level {
+    width: 132px;
   }
 }
 
@@ -228,7 +258,7 @@ h1 {
   top: 0;
   height: 100%;
   width: calc(var(--bar, 0) * 100%);
-  border-radius: 2px;
+  border-radius: inherit;
   background: var(--card-wall);
 }
 
@@ -238,7 +268,35 @@ h1 {
   bottom: -1px;
   left: calc(var(--at) * 100%);
   width: 1px;
+  background: rgb(255 255 255 / 40%);
+}
+
+#goal .notch {
   background: rgb(var(--shadow) / 45%);
+}
+
+/* The box is smaller than the mark, but the circles do not fit in it --- so the
+   bar is not an achievement yet. Hollowed out rather than recoloured: the fill
+   is what says "this much is settled", and nothing is. */
+#goal .level.is-unfit .bar {
+  background: none;
+  box-shadow: inset 0 0 0 2px var(--card-wall);
+  opacity: 0.55;
+}
+
+/* The goal: the tightest threshold the box has not reached yet, picked out
+   from the two either side of it. Marked rather than drawn --- it is one of the
+   three notches already there, so there is only ever one thing saying where a
+   threshold is. */
+.level .notch.is-goal {
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--ink);
+}
+
+#levels .notch.is-goal {
+  background: #fff;
 }
 
 .level.is-current {
@@ -246,11 +304,61 @@ h1 {
   outline-offset: 1.5px;
 }
 
-/* The one control besides the box handle: it appears in the corner only once
-   the frontier level has been beaten, so its arrival is the game saying "that
-   one's done". A right-pointing chevron drawn as a shape, same as the resize
-   glyph --- no text, because the game names nothing it can show instead. */
-.advance {
+#levels .level.is-current {
+  outline-color: #fff;
+}
+
+/* A level not reached yet. Shown so the game's length is visible, and dimmed
+   and unclickable so it is plainly not somewhere to go. */
+.level.is-locked {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.level.is-locked .notch {
+  display: none;
+}
+
+.level .lock {
+  display: none;
+}
+
+/* The padlock, drawn rather than set: a filled body and a bordered shackle
+   sitting on top of it, both in the row's own colour. Same approach as the
+   next-level chevron and the resize arrow --- no glyph, no image, nothing that
+   needs a font to arrive first. */
+.level.is-locked .lock {
+  display: block;
+  position: absolute;
+  left: 0.8rem;
+  top: 50%;
+  width: 11px;
+  height: 9px;
+  margin-top: 2px;
+  transform: translateY(-50%);
+  border-radius: 1.5px;
+  background: #fff;
+}
+
+.level.is-locked .lock::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  bottom: 7px;
+  width: 7px;
+  height: 7px;
+  border: 2px solid #fff;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+}
+
+/* The chrome's buttons share a shape: a metal disc in a corner, the same
+   fitting the box's handle is made of, so what is pressable reads as one
+   material. Each one draws its glyph on ::after as a clip-path --- no text,
+   because the game names nothing it can show instead. */
+.advance,
+.pick,
+.back {
   position: fixed;
   right: 1.1rem;
   bottom: 1.1rem;
@@ -267,14 +375,58 @@ h1 {
   z-index: 3;
 }
 
-.advance::after {
+.advance[hidden],
+.pick[hidden],
+.back[hidden] {
+  display: none;
+}
+
+.advance::after,
+.pick::after,
+.back::after {
   content: "";
   position: absolute;
   inset: 0;
   background: var(--ink);
   opacity: 0.6;
+}
+
+/* It appears only once the level has been beaten, so its arrival is the game
+   saying "that one's done". A right-pointing chevron. */
+.advance::after {
   clip-path: polygon(
     40% 28%, 50% 28%, 66% 50%, 50% 72%, 40% 72%, 54% 50%
+  );
+}
+
+/* Opens the level screen: three stacked tracks, which is what the screen is.
+   Top right, because the title sits in the top left and a disc dropped on top
+   of it reads as one thing covering another. */
+.pick {
+  bottom: auto;
+  top: 1.1rem;
+}
+
+.pick::after {
+  clip-path: polygon(
+    30% 33%, 70% 33%, 70% 39%, 30% 39%,
+    30% 47%, 70% 47%, 70% 53%, 30% 53%,
+    30% 61%, 70% 61%, 70% 67%, 30% 67%
+  );
+}
+
+/* Closes it again: the chevron, pointing back the other way. */
+.back {
+  right: auto;
+  left: 1.1rem;
+  bottom: auto;
+  top: 1.1rem;
+  z-index: 6;
+}
+
+.back::after {
+  clip-path: polygon(
+    60% 28%, 50% 28%, 34% 50%, 50% 72%, 60% 72%, 46% 50%
   );
 }
 

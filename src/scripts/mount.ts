@@ -14,7 +14,15 @@ import {
 } from "../game/session";
 import { ballAt, fitView, screenToWorld, viewBounds, VIEW_MARGIN, type ViewTransform } from "../game/view";
 import { BALL_RADIUS, MAX_LEVEL, WALL_WIDTH, type Ball, type Side } from "../game/types";
-import { createChrome, renderAdvance, renderFinish, renderLevels, type Chrome } from "./chrome";
+import {
+  createChrome,
+  renderAdvance,
+  renderFinish,
+  renderGoal,
+  renderLevels,
+  renderScreen,
+  type Chrome,
+} from "./chrome";
 import { createSurface, render, type Surface } from "./render";
 
 // The edge: DOM, pointers and the frame loop. Everything the rules need is a
@@ -215,6 +223,8 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
    * every frame, so a mid-zoom window resize is handled for free.
    */
   let zooming: { fromScale: number; tick: number } | null = null;
+  /** Whether the level-select screen is over the stage. */
+  let picking = false;
   let view: ViewTransform = fitView(openSide(session.level), 0, 0);
 
   function measureSurface(): { width: number; height: number } {
@@ -274,9 +284,19 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
 
   function draw(): void {
     render(surface, session.balls, session.side, view, raisedBall());
-    renderLevels(chrome.levels, histogramRows(session), { onSelect: goToLevel });
-    renderAdvance(chrome.advance, canAdvance());
+    const rows = histogramRows(session);
+    renderLevels(chrome.levels, rows, { onSelect: goToLevel });
+    renderGoal(chrome.goal, rows.find((row) => row.current));
+    renderScreen(chrome, picking);
+    renderAdvance(chrome.advance, canAdvance() && !picking);
     renderFinish(chrome.finish, session.finished, FINISH_TEXT);
+  }
+
+  /** Open or close the level-select screen. The game underneath keeps running:
+   *  the arrangement is at rest by then, so there is no state to suspend. */
+  function setPicking(open: boolean): void {
+    picking = open;
+    draw();
   }
 
   /**
@@ -294,6 +314,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
    *  earned it --- except level one, which starts over. */
   function goToLevel(n: number): void {
     const before = session.level;
+    picking = false;
     session = enterLevel(session, n);
     if (session.level !== before) beginZoom();
     commit();
@@ -507,6 +528,14 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     event.preventDefault();
     if (canAdvance()) advanceLevel();
   };
+  const onPick = (event: Event) => {
+    event.preventDefault();
+    setPicking(true);
+  };
+  const onBack = (event: Event) => {
+    event.preventDefault();
+    setPicking(false);
+  };
 
   // Move and release listen on the window, not the surface: a drag that leaves
   // the element, or one the browser never gave us pointer capture for, still
@@ -519,6 +548,8 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   view_.addEventListener("pointercancel", onUp);
   container.addEventListener("dragstart", preventNativeDrag);
   chrome.advance.addEventListener("click", onAdvance);
+  chrome.pick.addEventListener("click", onPick);
+  chrome.back.addEventListener("click", onBack);
 
   refreshView();
   draw();
@@ -545,6 +576,8 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
       view_.removeEventListener("pointercancel", onUp);
       container.removeEventListener("dragstart", preventNativeDrag);
       chrome.advance.removeEventListener("click", onAdvance);
+      chrome.pick.removeEventListener("click", onPick);
+      chrome.back.removeEventListener("click", onBack);
       container.replaceChildren();
       chrome.levels.replaceChildren();
       chrome.advance.hidden = true;

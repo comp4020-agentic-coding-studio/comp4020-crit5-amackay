@@ -3,10 +3,12 @@ import Layout from "../layouts/Layout.astro";
 import { histogramRows } from "../game/histogram";
 import { newSession } from "../game/session";
 
-// The opening screen, server-rendered: level one, one row in the nav, and the
-// two empty slots the running game fills. So dist/index.html carries what a
-// first-time player actually sees --- which is the state the "no instructions"
-// spec line is about, and the state the static text checks measure.
+// The opening screen, server-rendered: level one unlocked, the other nineteen
+// locked, and the slots the running game fills. So dist/index.html carries what
+// a first-time player actually sees --- which is the state the "no instructions"
+// spec line is about, and the state the static text checks measure. The level
+// screen ships hidden; the game opens on the box, not on a list with one row a
+// player can use.
 // Everything with a pixel position (the box, the balls, the bar lengths) is
 // written on hydrate; createChrome adopts these elements in place.
 const rows = histogramRows(newSession());
@@ -16,13 +18,13 @@ const rows = histogramRows(newSession());
   title="Bounding Box"
   description="A puzzle about packing circles into a square. Rearrange the circles, then find the smallest box that still fits them all."
 >
-  <nav aria-label="Levels" id="levels">
+  <nav aria-label="Levels" id="levels" hidden>
     {
       rows.map((row) => (
         <a
-          class:list={["level", { "is-current": row.current }]}
+          class:list={["level", { "is-current": row.current, "is-locked": row.locked }]}
           data-n={row.n}
-          aria-label={`Level ${row.n}`}
+          aria-label={row.locked ? `Level ${row.n}, locked` : `Level ${row.n}`}
           aria-current={row.current ? "step" : undefined}
           style={row.bestFraction != null ? `--bar: ${row.bestFraction}` : undefined}
         >
@@ -30,6 +32,7 @@ const rows = histogramRows(newSession());
           <span class="notch" style={`--at: ${row.notches.three}`} />
           <span class="notch" style={`--at: ${row.notches.two}`} />
           <span class="notch" style={`--at: ${row.notches.one}`} />
+          <span class="lock" />
         </a>
       ))
     }
@@ -38,6 +41,9 @@ const rows = histogramRows(newSession());
     <h1>Bounding Box</h1>
     <div id="stage"></div>
   </main>
+  <div id="goal"></div>
+  <button class="pick" type="button" aria-label="Levels"></button>
+  <button class="back" type="button" aria-label="Back to the game" hidden></button>
   <button class="advance" type="button" aria-label="Next level" hidden></button>
   <div id="finish"></div>
   <script src="../scripts/main.ts"></script>

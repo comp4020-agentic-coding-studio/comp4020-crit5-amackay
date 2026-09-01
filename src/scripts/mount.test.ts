@@ -6,7 +6,7 @@ import { optimum } from "../game/optima";
 import { play, playTo } from "../game/progress.test-helper";
 import { fitsNow } from "../game/compact";
 import { fitView, VIEW_MARGIN, worldToScreen } from "../game/view";
-import { WALL_WIDTH, type Ball } from "../game/types";
+import { MAX_LEVEL, WALL_WIDTH, type Ball } from "../game/types";
 
 // jsdom has no layout, so the surface is given its size explicitly rather than
 // measured. Everything below drives the game through screen pixels, the same
@@ -438,10 +438,52 @@ describe("level select and advancing", () => {
     return createGame(container, { session, size: SIZE });
   }
 
-  it("shows one nav row per level reached and none beyond", () => {
+  it("shows one nav row per level in the game, locking the ones ahead", () => {
     const game = createGame(container, { session: newSession(4), size: SIZE });
     game.step();
-    expect(document.querySelectorAll("#levels a.level")).toHaveLength(4);
+    expect(document.querySelectorAll("#levels a.level")).toHaveLength(MAX_LEVEL);
+    expect(document.querySelectorAll("#levels a.level.is-locked")).toHaveLength(
+      MAX_LEVEL - 4,
+    );
+    game.destroy();
+  });
+
+  it("opens the level screen and closes it again", () => {
+    const game = beatenAt(3);
+    game.step();
+    const levels = document.querySelector<HTMLElement>("#levels")!;
+    const pick = document.querySelector<HTMLButtonElement>("button.pick")!;
+    const back = document.querySelector<HTMLButtonElement>("button.back")!;
+    expect(levels.hidden).toBe(true);
+
+    pick.click();
+    expect(levels.hidden).toBe(false);
+    // The way onward belongs to the game, not to the screen over it.
+    expect(document.querySelector<HTMLButtonElement>("button.advance")!.hidden).toBe(true);
+
+    back.click();
+    expect(levels.hidden).toBe(true);
+    expect(document.querySelector<HTMLButtonElement>("button.advance")!.hidden).toBe(false);
+    game.destroy();
+  });
+
+  it("closes the screen on the way to the level that was picked", () => {
+    const game = beatenAt(3);
+    game.step();
+    document.querySelector<HTMLButtonElement>("button.pick")!.click();
+    document.querySelectorAll<HTMLElement>("#levels a.level")[1]!.click();
+    expect(game.session.level).toBe(2);
+    expect(document.querySelector<HTMLElement>("#levels")!.hidden).toBe(true);
+    game.destroy();
+  });
+
+  it("keeps a goal row for the level being played", () => {
+    const game = createGame(container, { session: newSession(4), size: SIZE });
+    game.step();
+    const rows = document.querySelectorAll<HTMLElement>("#goal .level");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.dataset.n).toBe("4");
+    expect(document.querySelectorAll("#goal .notch.is-goal")).toHaveLength(1);
     game.destroy();
   });
 
