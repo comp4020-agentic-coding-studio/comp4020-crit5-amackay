@@ -184,9 +184,14 @@ won't tell you:
   `scripts/check-images.ts` hashes the built CSS and the scripts those pages
   load, so it says so rather than leaving you to remember. `agent-browser` is a
   tool on the machine, not a dependency --- CI never re-takes anything, it only
-  checks. **It also re-encodes every run**, so the PNG bytes differ even when
-  the picture does not: `git checkout public/*.png` rather than commit a no-op
-  re-shoot.
+  checks.
+- **The staleness check is deliberately loose, and will cry wolf.** It hashes
+  the built CSS and every script the still pages load, and those pages import
+  `session.ts` for `openSide`, so a change anywhere in the session rules marks
+  the pictures stale even though nothing about them moved. That is the right
+  direction to be wrong in: the answer is to re-run `pnpm images` and look. A
+  re-shoot of an unchanged picture is byte-identical here, so a false positive
+  costs one commit of `scripts/images.fingerprint` and nothing else.
 - **`.githooks/pre-commit`** blocks key-shaped strings before they are pushed.
   The course API key lives in gitignored `.claude/`; keep it there.
 - **Nothing here renders at the marked sizes.** The site is judged live in
