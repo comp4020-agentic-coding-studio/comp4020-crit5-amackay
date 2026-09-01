@@ -5,9 +5,6 @@ not by what is most interesting. Kept current as decisions are made.
 
 ## Now — nothing else counts until these are done
 
-- [ ] **`PLAYTEST_START_LEVEL` back to 1** (`src/scripts/main.ts`). One line,
-      already marked TEMPORARY. Also fixes the disagreement between the
-      server-rendered opening screen (level 1) and what hydration opens.
 - [ ] **Play it at 390x844.** A fully marked viewport that nothing here tests.
       This is also the route to the spec's "one change that came from playing
       the finished game", which is currently unevidenced. The site is live now,
@@ -18,19 +15,12 @@ not by what is most interesting. Kept current as decisions are made.
 
 ## Next
 
-- [ ] **Level entry semantics** — one change in `src/game/session.ts`, three
-      symptoms:
-      - a level opened from level select should start at the box size recorded
-        for it, not at `openSide(n)`; `enterLevel` restores the best balls but
-        resets the side
-      - the next-level button must appear for a level re-entered from level
-        select, so handing the phone to someone at level 1 plays like a fresh
-        game without resetting the save
-      - the ball added on progression arrives in the centre, not at the top
-        (blocked on the descent decision below)
-- [ ] **Check a stored session survives** the level-1 revert and any session
-      shape change. `deserialise` fails safe; verify rather than assume. The
-      `localStorage` key is `tighter/v1` and predates the rename.
+- [ ] **Decide what to do about the overlap at every level opening.** A level
+      now opens at the previous level's box with one more circle in the middle,
+      so the circles start overlapping and stay overlapping until the box is
+      grown. That makes the open "no-overlap should be prioritised over
+      compression pressure" item much more visible than it was --- it is now the
+      first thing seen at every transition, not an edge case.
 
 ## If there is time
 
@@ -74,6 +64,17 @@ not by what is most interesting. Kept current as decisions are made.
   before the cutoff.
 
 ## Closed
+
+- **Level entry semantics, and the level-1 start.** The box carries over on
+  progression with the new circle in the middle; level select re-enters at the
+  size that beat the level and offers the next-level button there; selecting
+  level one hands back the opening state. Completion is read live rather than
+  from `bests`. Verified in the browser: 1 -> 2 -> grow -> compact -> beaten,
+  then level select both ways, then a reload.
+- **The stored session survives it.** The box is persisted now (it is part of
+  the answer, not a function of the level); a store written before that falls
+  back to the level's opening size. Key is still `tighter/v1` --- renaming it
+  would throw away real progress for nothing.
 
 - **The share card, the tab icon, and the head metadata.** Both pictures are
   screenshots of `/card.html` and `/icon.html`, which draw a compacted
