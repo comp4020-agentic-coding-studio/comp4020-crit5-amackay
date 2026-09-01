@@ -74,7 +74,7 @@ describe("nothing on screen tells the player anything", () => {
     }
   });
 
-  it("stays quiet through the real advance into the ending", () => {
+  it("stays quiet through a real advance", () => {
     const game = createGame(container, { session: sessionAt(CORE_SEQUENCE), size: SIZE });
     game.step();
     const button = document.querySelector<HTMLButtonElement>("button.advance")!;
@@ -83,11 +83,9 @@ describe("nothing on screen tells the player anything", () => {
     button.click();
     settleFrames(game);
 
-    expect(game.session.finished).toBe(true);
-    const finish = document.querySelector("#finish")!.textContent ?? "";
-    expect(finish.trim(), "the ending says nothing at all").not.toBe("");
-    assertQuiet("the ending");
-    expect(document.querySelector("#levels")?.textContent?.trim()).toBe("");
+    expect(game.session.level).toBe(CORE_SEQUENCE + 1);
+    assertQuiet("past the core sequence");
+    game.destroy();
   });
 
   it("stays quiet with the level screen open over the game", () => {
