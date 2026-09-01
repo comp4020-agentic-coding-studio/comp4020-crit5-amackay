@@ -32,7 +32,7 @@ beforeEach(() => {
 
 /** Everything the chrome puts on screen, as one run of text. */
 function screenText(): string {
-  return ["#levels", "button.advance", "#finish"]
+  return ["#levels", "#goal", "button.pick", "button.back", "button.advance", "#finish"]
     .map((sel) => document.querySelector(sel)?.textContent ?? "")
     .join(" ")
     .replace(/\s+/g, " ")
@@ -69,7 +69,7 @@ describe("nothing on screen tells the player anything", () => {
       expect(
         document.querySelectorAll("#levels a.level"),
         `level ${n}: nav rows`,
-      ).toHaveLength(n);
+      ).toHaveLength(MAX_LEVEL);
       game.destroy();
     }
   });
@@ -88,6 +88,17 @@ describe("nothing on screen tells the player anything", () => {
     expect(finish.trim(), "the ending says nothing at all").not.toBe("");
     assertQuiet("the ending");
     expect(document.querySelector("#levels")?.textContent?.trim()).toBe("");
+  });
+
+  it("stays quiet with the level screen open over the game", () => {
+    // A screen of its own is a surface of its own: the rows, the lock on each
+    // level not yet reached, and the way back all have to say nothing too.
+    const game = createGame(container, { session: sessionAt(5), size: SIZE });
+    game.step();
+    document.querySelector<HTMLButtonElement>("button.pick")!.click();
+    expect(document.querySelector<HTMLElement>("#levels")!.hidden).toBe(false);
+    assertQuiet("the level screen");
+    game.destroy();
   });
 
   it("lets the histogram carry the player back to an earlier level", () => {
