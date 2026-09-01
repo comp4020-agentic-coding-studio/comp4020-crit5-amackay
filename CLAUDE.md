@@ -61,9 +61,15 @@ from a previous week, where it silently 404s every asset on the live site.
   `import.meta.env.BASE_URL`.** A root-absolute `/foo.png` looks fine locally
   and 404s on Pages.
 - **`BASE_URL` carries no trailing slash here.** Joining it naively yields
-  `.../comp4020-crit5-amackaycard.png`.
+  `.../comp4020-crit5-amackaycard.png`; `src/layouts/Layout.astro` has the
+  shape that doesn't (`.replace(/\/?$/, "/")`, then `new URL(..., Astro.site)`
+  for the absolute URL `og:image` needs).
 - **The invariants check the share card is *present*, not that it *resolves*.**
-  A broken card URL ships green — read the built head.
+  A broken card URL ships green — read the built head. They also run against
+  *every* `.html` in `dist/`, so a page that exists only to be screenshotted
+  fails six of them; the two still pages carry `<meta name="robots"
+  content="noindex">` and the invariants skip on that. Nothing a visitor can
+  reach may opt out that way.
 - **`public/` is fetch-by-URL only**, and jsdom has no origin to resolve a
   relative `fetch` against, so anything in there is out of reach of the spec
   tests. Data the page needs belongs in `src/`, imported.
@@ -107,6 +113,11 @@ from a previous week, where it silently 404s every asset on the live site.
   the loop depends on the delta --- and the score follows the arrangement, so
   this is not cosmetic. Fix it by taking the delta out of the loop --- a frame is
   a tick, not a duration --- not by loosening the tolerance.
+- **An Astro `<style>` block is scoped by an attribute the compiler stamps on
+  the markup it compiled**, so a rule there never matches an element
+  `render.ts` created at runtime. Hiding the handle in the still pages' CSS
+  silently did nothing; the gate in `scripts/make-images.sh` caught it, which
+  is the reason a screenshot gets a gate at all.
 - **`agent-browser eval` keeps its context between calls.** A script that
   declares anything at the top level throws `Identifier has already been
   declared` on the second run, and a bare `const top`/`const stage` collides
@@ -148,10 +159,18 @@ won't tell you:
   Once public, a run deploys `dist/` to Pages and verifies the live URL
   returns 200.
 - **`pnpm check:evidence`** requires the reflection at exactly
-  `reflections/crit-5.md`, `PROCESS.md`'s commit citations to resolve, and the
-  share card not to be the starter one.
-- **`public/card.png` ships from the template** and must be replaced, along
-  with the `description` meta, before shipping.
+  `reflections/crit-5.md`, `PROCESS.md`'s commit citations to resolve, and both
+  shipped pictures to be present, the right size, and not stale.
+- **The two shipped pictures are screenshots, re-taken by `pnpm images`.**
+  `public/card.png` and `public/favicon.png` come from `/card.html` and
+  `/icon.html`, which draw a fixed arrangement with the site's own stylesheet
+  and its own `render.ts`. Change how the game looks and the pictures go stale;
+  `scripts/check-images.ts` hashes the built CSS and the scripts those pages
+  load, so it says so rather than leaving you to remember. `agent-browser` is a
+  tool on the machine, not a dependency --- CI never re-takes anything, it only
+  checks. **It also re-encodes every run**, so the PNG bytes differ even when
+  the picture does not: `git checkout public/*.png` rather than commit a no-op
+  re-shoot.
 - **`.githooks/pre-commit`** blocks key-shaped strings before they are pushed.
   The course API key lives in gitignored `.claude/`; keep it there.
 - **Nothing here renders at the marked sizes.** The site is judged live in
