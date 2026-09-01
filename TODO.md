@@ -5,15 +5,18 @@ not by what is most interesting. Kept current as decisions are made.
 
 ## Now — nothing else counts until these are done
 
-- [ ] **Deploy.** Flip the repo public, enable Pages, trigger the deploy, check
-      the live URL serves and that the card and every asset actually resolve in
-      the built head. CI has never run: it is gated on the repo being public.
-      First deploy is where base-path bugs surface, so do it with the game as it
-      stands rather than after tonight's changes.
-- [ ] **`reflections/crit-5.md`.** Owner's alone; nothing else writes it.
-- [ ] **`PROCESS.md`.** Still the untouched template, so `check:evidence` is
-      red. A reading guide with resolving commit citations. Candidate moments
-      are listed in `.claude/notes.md`.
+- [ ] **Deploy.** Everything up to the flip is done: commits pushed, secret
+      scan clean across worktree and all reachable history. The visibility flip
+      itself needs running by hand --- the auto-mode classifier blocks it. Then
+      Pages as a workflow site, dispatch `checks`, and verify the live URL
+      serves with its assets resolving. CI has never run; it is gated on the
+      repo being public.
+- [ ] **`reflections/crit-5.md`.** Committed and pushed at 31 words; the
+      course asks for 150--300. Owner's alone; nothing else writes it.
+- [ ] **`PROCESS.md`.** Still the untouched template, and the only remaining
+      `check:evidence` failure (the template citations `a1b2c3d` and `e4f5a6b`
+      do not resolve). A reading guide with resolving commit citations. The
+      owner picks which moments get written up.
 - [ ] **`public/card.png`** is the starter card, and the `description` meta goes
       with it. Also red under `check:evidence`.
 - [ ] **`PLAYTEST_START_LEVEL` back to 1** (`src/scripts/main.ts`). One line,
