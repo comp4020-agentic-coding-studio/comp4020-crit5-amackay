@@ -137,6 +137,9 @@ from a previous week, where it silently 404s every asset on the live site.
   reading the state computed for the *previous* pointer position. Measuring the
   pointer constraint that way reported a 0.75-radius intrusion that did not
   exist; reading on the next frame gave 1.0000 exactly.
+- **They are `balls` in code and in these documents, and `circles` in anything
+  a visitor reads.** The rules, the types and the notes all say ball; the
+  `description` meta, `alt` text and any future on-screen wording say circle.
 - **The `description` meta and any `alt` text are the exception to the
   no-prose rule** — the reader has not seen the page yet, so describing it
   is the whole job. Everywhere a player can already look, delete instead.
