@@ -20,6 +20,19 @@ the point of the exercise, so name it rather than working around it.
 - **So ask for a play, and say what you want watched.** When a change affects
   how the game reads or feels — pacing, difficulty, the first ten seconds —
   stop and say so rather than reporting the tests green and moving on.
+- **A level is beaten live, not from the record.** `levelComplete` asks whether
+  the box on screen is small enough *and* whether the arrangement actually fits
+  it --- not whether `bests` has an entry. That is what lets level one be
+  re-entered at its opening size and have to be beaten again. It also means a
+  test cannot fake a win by writing a number into `bests`: three helpers did,
+  and when the rule changed they spun for ever instead of failing.
+  `src/game/progress.test-helper.ts` is the one that actually packs, and every
+  test that needs a session several levels in uses it.
+- **A level opens over-compressed, by design.** The box carries over from the
+  level before with one more ball dropped into the middle, so every level
+  transition starts with circles overlapping and the box below its own
+  threshold. `fitsNow` in `levelComplete` is what stops that reading as an
+  already-beaten level.
 - **Keep the rules behind a seam.** State transitions, scoring, collision and
   level entry: plain functions taking state and returning state, with
   rendering and input at the edge. A rule bug and a rendering bug must never be
