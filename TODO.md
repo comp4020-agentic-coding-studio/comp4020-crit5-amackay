@@ -9,9 +9,6 @@ not by what is most interesting. Kept current as decisions are made.
       This is also the route to the spec's "one change that came from playing
       the finished game", which is currently unevidenced. The site is live now,
       so this can be done on the phone against the real URL.
-- [ ] **`FINISH_TEXT`** in `src/scripts/mount.ts` is the placeholder
-      `"ten levels, tighter"`. Owner's wording; it is the last thing a marker
-      reads.
 
 ## Next
 
@@ -30,10 +27,52 @@ not by what is most interesting. Kept current as decisions are made.
       handle arrow reading in / out / both according to whether the box can
       still close. These are one visual language, cheaper together than apart,
       and the largest destabilising diff on the list.
-- [ ] **The ending wording.** `FINISH_TEXT` is the last of the rename; the
-      title, `h1` and `description` are done.
 
 ## Needs a decision before any code
+
+### From the UX review, not taken up in the HUD rebuild
+
+- [ ] **A compact click is a no-op when the box is already at `compact()`'s own
+      fixed point.** At level five, reached by the obvious route, clicking the
+      handle does nothing at all --- six clicks running, byte-identical state ---
+      and the handle is simultaneously covered by a ball
+      (`elementFromPoint` at its centre returns `.ball`). The game's hardest
+      moment is where its only control appears broken. Options: make a refusal
+      visible, keep the handle reachable, or both.
+- [ ] **Overlap is not signalled on the circles themselves.** The only "does
+      not fit" cue is the size bar's hollow fill. Overlapping spheres are
+      physically impossible, so saying it on the circles is the wordless
+      teaching moment --- and it is where the player is already looking. Folds
+      into the visual-state pass above.
+- [ ] **The dominant strategy skips the puzzle.** Levels 3, 4, 6, 7, 8, 9 and
+      10 all cleared with *zero* circle drags: open the handle, click once,
+      2--3 stars. `advance` unlocks at one star, which is the naive grid, which
+      the solver clears unaided. Making a close a commitment rather than a free
+      probe is the change that would make the arrangement matter; gating
+      `advance` at two stars only narrows the gap. Not a tuning problem.
+- [ ] **The handle's hit area is still under 44px on a phone** --- 28px at level
+      twenty --- because it is sized in world units and shrinks as the packing
+      tightens. Wants a screen-space floor on the hit area while the drawing
+      stays in world units. (Owner's call: fix later.)
+- [ ] **The game writes `localStorage` about 60 times a second at idle,
+      forever.** Measured: 180 writes in 3s with no input. The arrangement never
+      reaches `maxDisplacement === 0` --- four of eleven balls were still moving
+      after 3s idle --- so `commit()`'s string-equality guard never fires and
+      every frame serialises the whole session. Side effect: the game cannot be
+      reset by clearing site data while its tab is open, because it rewrites
+      within a frame. The real bug is a quasi-static model that never rests.
+- [ ] **Locked rows dominate the level screen on a first run** --- eighteen
+      near-identical padlocked bars. Numbers help; the wall of them is still
+      the first thing a new player sees on that screen.
+- [ ] **Bar length is inverted against every progress bar a player has seen:**
+      longer means a bigger box, which is worse. Worth deciding whether the
+      fill should run the other way.
+- [ ] **No keyboard path into the game at all.** The only focusable things are
+      the chrome buttons and, since this week, the level rows; nothing moves a
+      circle or drives the box. See the deprioritised note below --- this is the
+      evidence for it, not a new item.
+
+### Standing
 
 - [ ] **Does the descent survive?** Adding the new ball in the centre removes
       the reason `src/game/descent.ts` exists, and the drop was deliberately
@@ -61,11 +100,18 @@ not by what is most interesting. Kept current as decisions are made.
 
 ## Closed
 
-- **Level select as its own screen, and the goal indicator.** A menu button
-  opens a sheet of all twenty levels, locked ones greyed with a drawn padlock;
-  the game screen keeps one row for the current level, its bar the box as it
-  stands and its bold notch the next star. Both looked at in a browser at
-  1920x1080 and 390x844, not just tested.
+- **Level select as its own screen.** A menu button opens a sheet of all twenty
+  levels, locked ones disabled with a drawn padlock, each row numbered and
+  drawn at one shared scale. Both looked at in a browser at 1920x1080 and
+  390x844, not just tested. The goal row it originally shipped with, on the
+  game screen, has since been replaced by the size bar and the star display.
+
+- **The HUD, as two bars and the play space between them.** The view frames the
+  level's naive grid rather than a box three times the size of the one on
+  screen; the top bar carries the menu, the stars won and a size bar drawn at
+  the box's own scale and tied to its right face; the bottom bar carries the
+  next-level button and reserves its height whether or not it is showing. The
+  title moved to the level screen and the ending caption went.
 
 - **Level entry semantics, and the level-1 start.** The box carries over on
   progression with the new circle in the middle; level select re-enters at the
