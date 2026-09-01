@@ -21,12 +21,11 @@ not by what is most interesting. Kept current as decisions are made.
 
 ## If there is time
 
-- [ ] **The visual-state pass, as one change**: flat colours after the Wikipedia
-      circle-packing diagrams (per instruction: not the subdued 3D look the art
-      pass currently has), walls tinted when the arrangement overlaps, and the
-      handle arrow reading in / out / both according to whether the box can
-      still close. These are one visual language, cheaper together than apart,
-      and the largest destabilising diff on the list.
+- [ ] **What is left of the visual-state pass.** The flat-colour half of it
+      shipped with the geometry diagram, and overlap now reads on the circles
+      themselves. Still open: the walls saying something when the arrangement
+      overlaps them, and the handle arrow reading in / out / both according to
+      whether the box can still close.
 
 ## Needs a decision before any code
 
@@ -39,11 +38,6 @@ not by what is most interesting. Kept current as decisions are made.
       (`elementFromPoint` at its centre returns `.ball`). The game's hardest
       moment is where its only control appears broken. Options: make a refusal
       visible, keep the handle reachable, or both.
-- [ ] **Overlap is not signalled on the circles themselves.** The only "does
-      not fit" cue is the size bar's hollow fill. Overlapping spheres are
-      physically impossible, so saying it on the circles is the wordless
-      teaching moment --- and it is where the player is already looking. Folds
-      into the visual-state pass above.
 - [ ] **The dominant strategy skips the puzzle.** Levels 3, 4, 6, 7, 8, 9 and
       10 all cleared with *zero* circle drags: open the handle, click once,
       2--3 stars. `advance` unlocks at one star, which is the naive grid, which
@@ -99,6 +93,16 @@ not by what is most interesting. Kept current as decisions are made.
   before the cutoff.
 
 ## Closed
+
+- **The art pass: a geometry diagram.** Ruled paper at one ball radius phased
+  on the world origin, two inks (the figure, and measurement and the hand), no
+  light and so no shadows. Walls drawn in section, hairline and hatch, at the
+  thickness the rules settle against. Circles as outlines with a translucent
+  wash, which is what closed *"overlap is not signalled on the circles
+  themselves"* --- two of them overlapping draw as crossing arcs and a darker
+  lens. Looked at in a browser at 1920x1080 and 390x844, on both screens and
+  through a drag; axe on the level screen came out one incomplete better than
+  before.
 
 - **Level select as its own screen.** A menu button opens a sheet of all twenty
   levels, locked ones disabled with a drawn padlock, each row numbered and

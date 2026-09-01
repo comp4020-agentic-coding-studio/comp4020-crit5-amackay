@@ -58,3 +58,23 @@ looked identical. And a handle drag set the box without recording it, so
 squeezing it tight by hand beat a level --- `levelComplete` reads the live box
 --- while leaving that level's row on the screen empty. Both were green all
 week.
+
+## The art pass: a diagram, which made a rule visible
+
+The subdued 3D look --- carpet, cardboard tray, lit glass balls --- went for a
+geometry diagram: ruled paper, two inks, no light. Ink is the figure and red is
+measurement and the hand, so nothing on screen is ambiguous about whether it is
+part of the packing or part of the reading of it.
+
+The paper is ruled at one ball radius and phased on the world origin, which
+makes it the game's own unit rather than texture: a naive packing's ball centres
+land on intersections, a level's opening box has its faces on lines, and the
+ruler in the top bar graduates at the same pitch.
+
+The payoff was not planned. Circles drawn as outlines with a translucent wash
+overlap as crossing arcs and a darker lens, so *"these do not fit"* is now said
+on the circles themselves --- which was an open item, and which the old opaque
+discs could not say at all. Two level-screen faults surfaced with it: three star
+sizes drawn on one centre line were a single blot at the early levels, and the
+padlock on a locked row had been drawn on top of that row's numeral.
+[`7b243eb`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-amackay/commit/7b243eb)
