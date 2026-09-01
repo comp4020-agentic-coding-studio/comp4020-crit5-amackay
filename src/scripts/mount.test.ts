@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createGame, type Game } from "./mount";
 import { advance, bestAt, newSession, openSide, record } from "../game/session";
 import { optimum } from "../game/optima";
+import { play, playTo } from "../game/progress.test-helper";
 import { fitsNow } from "../game/compact";
 import { fitView, VIEW_MARGIN, worldToScreen } from "../game/view";
 import { WALL_WIDTH, type Ball } from "../game/types";
@@ -431,8 +432,9 @@ describe("the handle", () => {
 describe("level select and advancing", () => {
   /** A session sitting on a beaten frontier level, N balls carried in. */
   function beatenAt(level: number): Game {
-    let session = newSession(level);
-    session = record(session, optimum(level), session.balls);
+    // A genuinely beaten level: the arrangement has to fit the box, not just
+    // be listed in `bests`, before the game will offer the way onward.
+    const session = play(playTo(level));
     return createGame(container, { session, size: SIZE });
   }
 
@@ -520,18 +522,28 @@ describe("level select and advancing", () => {
     expect(play()).toEqual(play());
   });
 
-  it("only offers the button at a beaten frontier level", () => {
+  it("offers the button wherever the box counts, frontier or not", () => {
     const button = () => document.querySelector<HTMLButtonElement>("button.advance")!;
     const fresh = createGame(container, { session: newSession(2), size: SIZE });
     fresh.step();
-    expect(button().hidden).toBe(true); // frontier, not yet beaten
+    expect(button().hidden).toBe(true); // open box, nothing beaten yet
     fresh.destroy();
 
-    const won = beatenAt(2);
+    const won = beatenAt(3);
     won.step();
     expect(button().hidden).toBe(false);
-    // drop back to level 1 via the nav: no longer the frontier
+
+    // Back to level 2 from the nav: already beaten, so the way onward is still
+    // offered --- picking an earlier level up is not starting it again.
+    document.querySelectorAll<HTMLElement>("#levels a.level")[1]!.click();
+    expect(won.session.level).toBe(2);
+    expect(button().hidden).toBe(false);
+
+    // Level one is the exception: it hands back the opening state, so it has
+    // to be beaten again. This is what lets the device be handed to someone
+    // else without the save being thrown away.
     document.querySelectorAll<HTMLElement>("#levels a.level")[0]!.click();
+    expect(won.session.level).toBe(1);
     expect(button().hidden).toBe(true);
     won.destroy();
   });

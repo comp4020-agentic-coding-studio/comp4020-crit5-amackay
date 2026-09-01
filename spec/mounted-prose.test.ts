@@ -10,9 +10,8 @@
 // is the check with teeth.
 import { beforeEach, describe, expect, it } from "vitest";
 import { createGame, type Game } from "../src/scripts/mount";
-import { optimum } from "../src/game/optima";
-import { stars } from "../src/game/score";
-import { openSide, startingBalls, type Best, type Session } from "../src/game/session";
+import { play, playTo } from "../src/game/progress.test-helper";
+import type { Session } from "../src/game/session";
 import { CORE_SEQUENCE, MAX_LEVEL } from "../src/game/types";
 
 const SIZE = { width: 800, height: 600 };
@@ -46,20 +45,15 @@ function assertQuiet(where: string): void {
   expect(text, `${where}: a sentence on screen`).not.toMatch(SENTENCE);
 }
 
-/** A session parked at a beaten level n, every level through n recorded at its optimum. */
+/**
+ * A session parked at level n with that level beaten and every level before it
+ * played through. Played rather than fabricated: a level counts as beaten when
+ * the arrangement actually fits the box, so a session with numbers written
+ * into `bests` and the balls left where they started is not one.
+ */
 function sessionAt(n: number): Session {
-  const bests: Record<number, Best> = {};
-  for (let k = 1; k <= n; k++) {
-    bests[k] = { side: optimum(k), stars: stars(k, optimum(k)), balls: startingBalls(k) };
-  }
-  return {
-    level: n,
-    reached: n,
-    balls: startingBalls(n),
-    side: openSide(n),
-    bests,
-    finished: n > CORE_SEQUENCE,
-  };
+  const session = play(playTo(n));
+  return { ...session, finished: n > CORE_SEQUENCE };
 }
 
 function settleFrames(game: Game, frames = 200): void {

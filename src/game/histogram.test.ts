@@ -2,19 +2,9 @@ import { describe, expect, it } from "vitest";
 import { BAR_MAX, histogramRows } from "./histogram";
 import { optimum } from "./optima";
 import { thresholds } from "./score";
+import { beat, playTo } from "./progress.test-helper";
 import { advance, enterLevel, newSession, record, type Session } from "./session";
 import { CORE_SEQUENCE } from "./types";
-
-/** Play a level to the given size and move on, the same shape session.test.ts uses. */
-function beat(session: Session, side = optimum(session.level)): Session {
-  return advance(record(session, side, session.balls));
-}
-
-function playTo(level: number): Session {
-  let session = newSession();
-  while (session.level < level) session = beat(session);
-  return session;
-}
 
 describe("histogramRows", () => {
   it("has one row per level reached and none beyond", () => {

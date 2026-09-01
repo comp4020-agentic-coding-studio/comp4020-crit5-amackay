@@ -2,16 +2,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createChrome, renderAdvance, renderFinish, renderLevels } from "./chrome";
 import { histogramRows } from "../game/histogram";
-import { advance, newSession, record, type Session } from "../game/session";
-import { optimum } from "../game/optima";
-
-function playTo(level: number): Session {
-  let session = newSession();
-  while (session.level < level) {
-    session = advance(record(session, optimum(session.level), session.balls));
-  }
-  return session;
-}
+import { playTo } from "../game/progress.test-helper";
+import { newSession } from "../game/session";
 
 beforeEach(() => {
   document.body.replaceChildren();

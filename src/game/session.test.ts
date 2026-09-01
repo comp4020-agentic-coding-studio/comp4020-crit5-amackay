@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { optimum } from "./optima";
 import { par } from "./score";
+import { beat, play, playTo } from "./progress.test-helper";
 import {
   advance,
   bestAt,
@@ -14,17 +15,6 @@ import {
   type Session,
 } from "./session";
 import { CORE_SEQUENCE, MAX_LEVEL } from "./types";
-
-/** Play a level to the given size and move on. */
-function beat(session: Session, side = optimum(session.level)): Session {
-  return advance(record(session, side, session.balls));
-}
-
-function playTo(level: number): Session {
-  let session = newSession();
-  while (session.level < level) session = beat(session);
-  return session;
-}
 
 describe("a new session", () => {
   it("starts at one ball", () => {
@@ -72,17 +62,23 @@ describe("advancing", () => {
     expect(advance(session)).toBe(session);
   });
 
-  it("carries every position over and adds exactly one ball", () => {
-    const session = record(newSession(), 2, [{ x: 0.5, y: -0.25 }]);
+  it("carries every position over and adds exactly one ball, in the middle", () => {
+    const session = play(beat(newSession()));
+    const before = session.balls.map((ball) => ({ ...ball }));
     const next = advance(session);
-    expect(next.level).toBe(2);
-    expect(next.balls).toHaveLength(2);
-    expect(next.balls[0]).toEqual({ x: 0.5, y: -0.25 });
+    expect(next.level).toBe(3);
+    expect(next.balls).toHaveLength(3);
+    expect(next.balls.slice(0, 2)).toEqual(before);
+    expect(next.balls[2]).toEqual({ x: 0, y: 0 });
   });
 
-  it("opens the box to give the new ball room", () => {
-    const next = advance(record(newSession(), 2, newSession().balls));
-    expect(next.side).toBeGreaterThan(par(2));
+  it("keeps the box at the size the level before it was closed to", () => {
+    const session = play(newSession());
+    const next = advance(session);
+    expect(next.side).toBe(session.side);
+    // Which is the whole difficulty: a box that already held N is now being
+    // asked to hold N + 1, so it does not fit and cannot be left yet.
+    expect(levelComplete(next)).toBe(false);
   });
 
   it("never shortens an arrangement, whatever the transition", () => {
@@ -91,7 +87,7 @@ describe("advancing", () => {
     let session = newSession();
     for (let level = 1; level < CORE_SEQUENCE; level++) {
       const before = session.balls.length;
-      session = record(session, optimum(session.level), session.balls);
+      session = play(session);
       expect(session.balls.length).toBeGreaterThanOrEqual(before);
       session = advance(session);
       expect(session.balls.length).toBeGreaterThan(before);
@@ -142,20 +138,34 @@ describe("level select", () => {
   });
 
   it("restores the best arrangement rather than a blank one", () => {
-    let session = record(newSession(), 2, [{ x: 0.4, y: 0.4 }]);
-    session = advance(session);
-    session = record(session, optimum(2), [
-      { x: -1, y: -1 },
-      { x: 1, y: 1 },
-    ]);
-    const back = enterLevel(session, 1);
-    expect(back.level).toBe(1);
-    expect(back.balls).toEqual([{ x: 0.4, y: 0.4 }]);
+    const session = playTo(4);
+    const best = bestAt(session, 3)!;
+    const back = enterLevel(session, 3);
+    expect(back.level).toBe(3);
+    expect(back.balls).toEqual(best.balls);
   });
 
-  it("opens the box on re-entry, so the level can be played again", () => {
-    const session = enterLevel(playTo(3), 2);
-    expect(session.side).toBeGreaterThan(optimum(2));
+  it("re-enters a level at the size that beat it, not at a fresh box", () => {
+    const session = playTo(4);
+    const back = enterLevel(session, 3);
+    expect(back.side).toBe(bestAt(session, 3)!.side);
+    // Already beaten, so the way onward is offered straight away: picking a
+    // level back up is not playing it again from nothing.
+    expect(levelComplete(back)).toBe(true);
+  });
+
+  it("starts level one over, so a device can be handed to someone else", () => {
+    const session = playTo(5);
+    const back = enterLevel(session, 1);
+    expect(back.level).toBe(1);
+    expect(back.balls).toEqual(newSession().balls);
+    expect(back.side).toBe(newSession().side);
+    // The opening state means the opening problem: it has to be beaten again
+    // before the next level is offered.
+    expect(levelComplete(back)).toBe(false);
+    // And nothing was thrown away to do it.
+    expect(back.reached).toBe(session.reached);
+    expect(bestAt(back, 1)).toEqual(bestAt(session, 1));
   });
 });
 
@@ -166,7 +176,19 @@ describe("persistence", () => {
     expect(restored.level).toBe(session.level);
     expect(restored.reached).toBe(session.reached);
     expect(restored.balls).toEqual(session.balls);
+    expect(restored.side).toBe(session.side);
     expect(bestAt(restored, 3)?.side).toBe(bestAt(session, 3)?.side);
+  });
+
+  it("falls back to the opening box for a store written before sides were kept", () => {
+    const old = JSON.stringify({
+      level: 1,
+      reached: 1,
+      balls: [{ x: 0, y: 0 }],
+      bests: {},
+      finished: false,
+    });
+    expect(deserialise(old).side).toBe(newSession().side);
   });
 
   it("starts fresh on anything it cannot read", () => {
