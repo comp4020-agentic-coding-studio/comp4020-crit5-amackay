@@ -19,8 +19,12 @@
   }
   const boxWidth = box ? box.getBoundingClientRect().width : 0;
   if (!(boxWidth > 0)) problems.push("the box has no width");
-  if (handle && handle.offsetParent !== null) problems.push("the handle is still showing");
+  const wantsHandle = stage.dataset.handle === "true";
+  const showing = handle !== null && handle.offsetParent !== null;
+  if (showing !== wantsHandle) {
+    problems.push(wantsHandle ? "the handle is missing" : "the handle is still showing");
+  }
   if (text !== "") problems.push(`there is text on the picture: ${JSON.stringify(text)}`);
 
-  return { ok: problems.length === 0, problems, balls: balls.length, boxWidth };
+  return { ok: problems.length === 0, problems, balls: balls.length, boxWidth, handle: showing };
 })();

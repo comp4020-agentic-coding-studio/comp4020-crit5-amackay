@@ -9,7 +9,8 @@ import { WALL_WIDTH } from "../game/types";
 // The view is built here rather than by fitView(), whose VIEW_MARGIN is 2.5
 // radii of clearance for a ball shed over a wall --- room the game needs and a
 // picture does not. A still has nothing outside the box, so it frames the box
-// and its walls and stops.
+// and stops. data-margin is the clear space kept outside the walls, in radii;
+// at 0 the box's inside fills the frame exactly and the walls fall outside it.
 
 const stage = document.querySelector<HTMLElement>("#stage");
 
@@ -19,15 +20,16 @@ if (stage) {
   const { balls, side } = still(n);
 
   const surface = createSurface(stage);
-  // The handle is the game's one control, and neither picture is of a game in
-  // progress. Removed rather than hidden from the page's stylesheet: Astro
-  // scopes a component's CSS by an attribute it stamps on the markup it
-  // compiled, and this element is made at runtime, so a scoped `.handle` rule
-  // never matches it. The gate caught that; it would have shipped otherwise.
-  surface.handle.remove();
+  // The handle is the game's one control, so a picture of the whole box wants
+  // it and a picture of the box's inside has no room for it. Removed rather
+  // than hidden from the page's stylesheet: Astro scopes a component's CSS by
+  // an attribute it stamps on the markup it compiled, and this element is made
+  // at runtime, so a scoped `.handle` rule never matches it. The gate caught
+  // that; it would have shipped otherwise.
+  if (stage.dataset.handle !== "true") surface.handle.remove();
   const width = stage.clientWidth;
   const height = stage.clientHeight;
-  const framed = side + 2 * WALL_WIDTH + 2 * margin;
+  const framed = side + (margin > 0 ? 2 * WALL_WIDTH + 2 * margin : 0);
   const scale = Math.min(width, height) / framed;
 
   render(surface, balls, side, { originX: width / 2, originY: height / 2, scale }, null);
