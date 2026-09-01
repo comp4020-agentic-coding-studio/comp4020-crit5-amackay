@@ -5,26 +5,16 @@ not by what is most interesting. Kept current as decisions are made.
 
 ## Now — nothing else counts until these are done
 
-- [ ] **Deploy.** Everything up to the flip is done: commits pushed, secret
-      scan clean across worktree and all reachable history. The visibility flip
-      itself needs running by hand --- the auto-mode classifier blocks it. Then
-      Pages as a workflow site, dispatch `checks`, and verify the live URL
-      serves with its assets resolving. CI has never run; it is gated on the
-      repo being public.
-- [ ] **`reflections/crit-5.md`.** Committed and pushed at 31 words; the
-      course asks for 150--300. Owner's alone; nothing else writes it.
-- [ ] **`PROCESS.md`.** Still the untouched template, and the only remaining
-      `check:evidence` failure (the template citations `a1b2c3d` and `e4f5a6b`
-      do not resolve). A reading guide with resolving commit citations. The
-      owner picks which moments get written up.
-- [ ] **`public/card.png`** is the starter card, and the `description` meta goes
-      with it. Also red under `check:evidence`.
+- [ ] **`public/card.png`** is still the starter card, and the `description`
+      meta goes with it. It resolves live, so nothing is red --- but it is what
+      a link to the site looks like in the course gallery.
 - [ ] **`PLAYTEST_START_LEVEL` back to 1** (`src/scripts/main.ts`). One line,
       already marked TEMPORARY. Also fixes the disagreement between the
       server-rendered opening screen (level 1) and what hydration opens.
 - [ ] **Play it at 390x844.** A fully marked viewport that nothing here tests.
       This is also the route to the spec's "one change that came from playing
-      the finished game", which is currently unevidenced.
+      the finished game", which is currently unevidenced. The site is live now,
+      so this can be done on the phone against the real URL.
 - [ ] **`FINISH_TEXT`** in `src/scripts/mount.ts` is the placeholder
       `"ten levels, tighter"`. Owner's wording; it is the last thing a marker
       reads.
@@ -87,6 +77,13 @@ not by what is most interesting. Kept current as decisions are made.
   before the cutoff.
 
 ## Closed
+
+- **Shipped.** Repo public, Pages enabled as a workflow site, `checks` green
+  (`check` and `deploy` both), live at
+  <https://comp4020-agentic-coding-studio.github.io/comp4020-crit5-amackay/>
+  with its css and js resolving under the base path.
+- `PROCESS.md` written, `reflections/crit-5.md` committed, `check:evidence`
+  green.
 
 - Loss and failure conditions: not being pursued. The puzzle has a goal and you
   can struggle to reach it; that is the whole of it.
