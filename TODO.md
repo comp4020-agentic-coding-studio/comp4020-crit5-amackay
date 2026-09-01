@@ -24,10 +24,6 @@ not by what is most interesting. Kept current as decisions are made.
 
 ## If there is time
 
-- [ ] **Level select as its own screen** — vertical scroll, all levels shown,
-      unreached ones greyed with a lock icon. Standard convention.
-- [ ] **A wordless indicator of the current goal**, the next star threshold
-      being aimed at.
 - [ ] **The visual-state pass, as one change**: flat colours after the Wikipedia
       circle-packing diagrams (per instruction: not the subdued 3D look the art
       pass currently has), walls tinted when the arrangement overlaps, and the
@@ -64,6 +60,12 @@ not by what is most interesting. Kept current as decisions are made.
   before the cutoff.
 
 ## Closed
+
+- **Level select as its own screen, and the goal indicator.** A menu button
+  opens a sheet of all twenty levels, locked ones greyed with a drawn padlock;
+  the game screen keeps one row for the current level, its bar the box as it
+  stands and its bold notch the next star. Both looked at in a browser at
+  1920x1080 and 390x844, not just tested.
 
 - **Level entry semantics, and the level-1 start.** The box carries over on
   progression with the new circle in the middle; level select re-enters at the

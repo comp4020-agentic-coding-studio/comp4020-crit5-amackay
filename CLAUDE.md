@@ -126,6 +126,10 @@ from a previous week, where it silently 404s every asset on the live site.
   the loop depends on the delta --- and the score follows the arrangement, so
   this is not cosmetic. Fix it by taking the delta out of the loop --- a frame is
   a tick, not a duration --- not by loosening the tolerance.
+- **The level screen and the goal row draw the same `.level` markup.**
+  `renderLevels` fills a row's bar from the *recorded best*; `renderGoal` fills
+  it from the *box on screen*. Same element, two currencies --- so a change to
+  one has to say which it meant.
 - **An Astro `<style>` block is scoped by an attribute the compiler stamps on
   the markup it compiled**, so a rule there never matches an element
   `render.ts` created at runtime. Hiding the handle in the still pages' CSS
