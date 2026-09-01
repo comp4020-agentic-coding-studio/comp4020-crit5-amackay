@@ -280,20 +280,18 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   }
 
   /**
-   * The next-level button shows only where it means something: at the frontier
-   * level, once par has been beaten, and never at the last level. Revisiting an
-   * earlier level via the histogram is not the frontier, so the histogram is
-   * how a player moves around then.
+   * The next-level button shows wherever the box on screen counts, frontier or
+   * not --- so a level re-entered from the histogram offers the way onward the
+   * same as a level reached for the first time. That is what lets level one be
+   * selected and the device handed over: what follows is the game, not a tour
+   * of someone else's saves.
    */
   function canAdvance(): boolean {
-    return (
-      session.level === session.reached &&
-      session.level < MAX_LEVEL &&
-      levelComplete(session)
-    );
+    return session.level < MAX_LEVEL && levelComplete(session);
   }
 
-  /** Jump to a level already reached, restoring its best arrangement. */
+  /** Jump to a level already reached: its best arrangement, at the size that
+   *  earned it --- except level one, which starts over. */
   function goToLevel(n: number): void {
     const before = session.level;
     session = enterLevel(session, n);
@@ -303,7 +301,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     draw();
   }
 
-  /** Move past a beaten frontier level: one more ball, a bigger box. */
+  /** Move past a beaten level: one more ball, in the middle, box unchanged. */
   function advanceLevel(): void {
     const before = session.level;
     session = advance(session);

@@ -23,14 +23,21 @@ the player cannot settle into a single strategy.
 - Levels are N = 1, 2, 3, ... Level 1 is a single ball.
 - The core sequence runs to N = 10. Completing it shows a congratulations
   message. Implement levels up to N = 20 for playtesting purposes.
-- Positions carry over between levels. On completing a level, nothing resets —
-  one extra ball drops into the space and the next level begins.
+- Positions carry over between levels, and so does the box. On completing a
+  level, nothing resets — one extra ball arrives in the middle of the
+  arrangement and the next level begins around it, at the size the last one was
+  closed to. So a level opens as the previous level's answer with a ball too
+  many in it, and the first move is making room.
 - The best result for each level is remembered.
 - Level select lets the player return to any level reached so far. Re-entering
-  a level restores the player's best arrangement for it.
-- There is no reset button. Leaving to level select and coming back is the
-  closest equivalent, and it restores the best arrangement rather than a blank
-  one.
+  a level restores the player's best arrangement for it, at the size that
+  earned it.
+- **Level one is the exception**: selecting it hands back the opening state
+  instead, so a device can be handed to someone else and they get the game from
+  the beginning. Nothing is discarded to do it — the bests and the levels
+  reached are untouched.
+- There is no reset button. Selecting level one is the closest equivalent, and
+  it is a way in rather than a way of throwing work away.
 
 The N = k² levels (4, 9) have grid optima and are restful. The N = k²+1 levels
 (2, 5, 10) require tearing the whole arrangement down. This rhythm comes free
