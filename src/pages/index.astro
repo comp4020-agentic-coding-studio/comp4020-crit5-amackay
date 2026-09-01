@@ -13,8 +13,8 @@ const rows = histogramRows(newSession());
 ---
 
 <Layout
-  title="Tighter"
-  description="A puzzle about circle packing. Drag the balls into an arrangement, close the square box around them, and see how small it goes. Ten levels, one more ball each time."
+  title="Bounding Box"
+  description="A puzzle about circle packing: balls in a square tray, and a box that closes as far as the arrangement inside it allows. Ten levels, one more ball each time, scored against the smallest square known to hold them."
 >
   <nav aria-label="Levels" id="levels">
     {
@@ -35,7 +35,7 @@ const rows = histogramRows(newSession());
     }
   </nav>
   <main>
-    <h1>Tighter</h1>
+    <h1>Bounding Box</h1>
     <div id="stage"></div>
   </main>
   <button class="advance" type="button" aria-label="Next level" hidden></button>
