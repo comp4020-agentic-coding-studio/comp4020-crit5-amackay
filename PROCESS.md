@@ -34,3 +34,27 @@ in its own commit, ahead of the prose changes; the two checks carrying the real
 spec line --- no instruction-shaped copy, no sentences on screen --- stayed, on
 the built page and the mounted game both.
 [`b6f673d...db60cb0`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-amackay/compare/b6f673d...db60cb0)
+
+## The HUD, sized against a measurement rather than an impression
+
+A UX review, played at both marked sizes with the geometry read out of the DOM,
+found the game drawn at 196--429px on a 1920x1080 screen and 71--155px on a
+390x844 one. The cause was in the camera, not the art: the view framed
+`openSide(N) + 2*VIEW_MARGIN` --- `par(N) + 9` radii --- around a box that is
+usually a quarter of that. It now frames `par(N) + 3`, the square the level
+asks you to beat, and the box doubles on both screens.
+[`697228e`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-amackay/commit/697228e)
+
+That paid for a HUD. Two bars take the top and bottom and the game gets the
+band between them; the top bar carries the stars won and a size bar drawn at
+the box's *own* scale, its left edge on the box's centre, so the mark sits at
+the same screen x as the box's right face and a dotted line draws the link.
+Checked by reading both back in the same frame: 1334.39 against 1334.40.
+[`7cd6374...6c23335`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-amackay/compare/7cd6374...6c23335)
+
+Two things the review found that the tests could not. `stars()` had been
+computed, stored and never drawn, so a three-star packing and a one-star one
+looked identical. And a handle drag set the box without recording it, so
+squeezing it tight by hand beat a level --- `levelComplete` reads the live box
+--- while leaving that level's row on the screen empty. Both were green all
+week.
