@@ -1,70 +1,36 @@
 # Process overview
 
-<!-- TEMPLATE: this file is a shape to fill in, not a form. Replace everything
-     in it with your own overview, and delete this comment — `pnpm
-     check:evidence` will remind you if it's still here. -->
+A circle-packing puzzle. Each level adds a ball and asks for the smallest square
+that still holds them all, scored against the published best-known packings.
+Balls carry over, nothing resets, and the box's single handle is the whole
+interface.
 
-A reading-guide to how the work came together --- a map to your process, not an
-essay about it. Markers read this file and follow its citations; they don't
-trawl the repo for evidence you didn't point at, so if a moment mattered, cite
-it.
+## Gravity, built and then deleted
 
-This file is the shape; the course site's
-[assessment page](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/topics/assessment/#what-you-submit)
-is the requirement, and its
-[word counts](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/topics/assessment/#word-counts)
-cover every deliverable.
+The descent began as a real fall --- a `GRAVITY` constant derived from the carry
+height and a fixed duration ([`362a89d`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-amackay/commit/362a89d)). Correct, and wrong:
+a clock-paced fall takes the same half second whether or not anything is in the
+way, so a drop into open space was half a second of nothing happening.
 
-## What I built
+Rather than tune the duration, the concept went. The fall is slaved to the
+arrangement now: a released ball presses down until its reach bites its nearest
+neighbour, and that bite *is* the shove, so the descent advances exactly as fast
+as the shove it causes. Measured in the browser rather than asserted:
+0.1s into clear space, 0.25s half-blocked, 0.5s dropped squarely onto another,
+against a flat 0.5s before. [`62b9a5b`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-amackay/commit/62b9a5b)
 
-One paragraph: the thing, and the idea behind it.
+## Two harness rules deleted
 
-## The moments that mattered
+Growing `CLAUDE.md` is the week's work; two of its rules grew the wrong way. A
+twenty-word visible-prose budget was a proxy for the spec's no-instructions
+line, and outlived it --- spreading into the spec tests, both design docs and six
+source comments. Separately, *"it can be lost"* was read literally, so the agent
+kept reporting the missing failure state and proposing ways to add one; for a
+puzzle, the struggle to reach the threshold is the losable part.
 
-Three or four for an assignment; fewer is fine for a weekly prototype. Keep the
-list short so each moment has room to do all four jobs:
-
-1. **what happened** --- the problem, or the thing that went wrong
-2. **what you did instead of the obvious thing** --- the call you made, and why
-   it beat the obvious one
-3. **how you knew it was right** --- the check you ran, the viewport you looked
-   at, what you read before accepting the diff
-4. **the citation** --- a commit or commit range, a `CLAUDE.md` change, a check
-   that went from red to green, a prompt paired with the commit it produced
-
-Jobs 2 and 3 are the ones the repo can't tell a reader on its own, so they're
-where the marks are. The strongest moments are the ones where a correction
-landed in the **harness** --- the standards and checks your work has to satisfy
---- rather than in a retry: a rule added to `CLAUDE.md`, a check wired up, an
-attempt thrown away. Retrying until it passes is the routine case, and changing
-what the work runs against is the skilled one.
-
-Cite each moment as a link whose text is the commit hash or range and whose
-target is this repo's commit or compare URL, so a reader clicks straight to the
-evidence:
-
-- one commit: [`a1b2c3d`](https://github.com/YOUR-ORG/YOUR-REPO/commit/a1b2c3d)
-- a range:
-  [`a1b2c3d...e4f5a6b`](https://github.com/YOUR-ORG/YOUR-REPO/compare/a1b2c3d...e4f5a6b)
-
-To pair a prompt with the commit it produced, quote the prompt (curated, not a
-full transcript) next to the citation:
-
-> the prompt, verbatim
-
-Screenshots are welcome where one carries the verification better than a
-sentence does. Commit the file to this repo and link it with a **relative**
-path, which is what makes it render on GitHub: `![alt text](docs/before.png)`.
-Images don't count towards the word count and don't replace the citation.
-
-## Before you ship
-
-`pnpm check:evidence` verifies your citations resolve to real commits, that a
-reflection entry the marker reads is in `reflections/`, and that your
-`CLAUDE.md` is there --- before a marker ever opens the file. It checks that
-your map is traceable, not that it is good: the marker judges whether your
-small, deliberately chosen set of moments shows real judgement and reflection. A
-green check is not a substitute for that curation.
-
-Images aren't checked: unlike a citation whose SHA doesn't resolve, a broken
-image is visible the moment this file is rendered on GitHub.
+Both were deleted rather than argued with each time they surfaced: a note left
+in the harness is one the agent keeps re-deriving from. The spec test came out
+in its own commit, ahead of the prose changes; the two checks carrying the real
+spec line --- no instruction-shaped copy, no sentences on screen --- stayed, on
+the built page and the mounted game both.
+[`b6f673d...db60cb0`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-amackay/compare/b6f673d...db60cb0)
