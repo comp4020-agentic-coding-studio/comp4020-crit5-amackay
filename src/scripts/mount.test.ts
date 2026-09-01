@@ -345,7 +345,56 @@ describe("the handle", () => {
     expect(game.session.balls).toEqual(before);
 
     game.handleUp();
-    // A drag, not a click: releasing it does not compact or record.
+    // A drag, not a click: releasing it does not compact. And nothing is
+    // recorded either, because the balls do not fit what it was pulled to ---
+    // a drag that does fit is a result, and has its own test below.
+    expect(bestAt(game.session, 2)).toBeUndefined();
+    game.destroy();
+  });
+
+  it("records a drag the moment the arrangement fits what it has been pulled to", () => {
+    // A drag used to set the box and nothing else, so squeezing it down by hand
+    // beat a level --- levelComplete reads the live box --- without ever
+    // recording it, and the level's row on the screen stayed empty.
+    const game = mount([{ x: 0, y: 0 }], 4);
+    const handle = handleAt(game);
+    expect(bestAt(game.session, 1)).toBeUndefined();
+
+    game.handleDown(handle.x, handle.y);
+    const tight = at(game, { x: 1, y: -1 });
+    game.handleMove(tight.x, tight.y);
+
+    expect(game.session.side).toBeCloseTo(2, 6);
+    expect(bestAt(game.session, 1)?.side).toBeCloseTo(2, 6);
+    expect(bestAt(game.session, 1)?.stars).toBe(3);
+    game.handleUp();
+    game.destroy();
+  });
+
+  it("keeps the better of the two when a drag goes back out", () => {
+    const game = mount([{ x: 0, y: 0 }], 4);
+    const handle = handleAt(game);
+    game.handleDown(handle.x, handle.y);
+    game.handleMove(at(game, { x: 1, y: -1 }).x, at(game, { x: 1, y: -1 }).y);
+    game.handleMove(at(game, { x: 1.6, y: -1.6 }).x, at(game, { x: 1.6, y: -1.6 }).y);
+    game.handleUp();
+
+    expect(game.session.side).toBeCloseTo(3.2, 6);
+    expect(bestAt(game.session, 1)?.side).toBeCloseTo(2, 6);
+    game.destroy();
+  });
+
+  it("records nothing from a drag tighter than the arrangement fits", () => {
+    const game = mount([
+      { x: -1, y: 0 },
+      { x: 1, y: 0 },
+    ], 5);
+    const handle = handleAt(game);
+    game.handleDown(handle.x, handle.y);
+    // Well inside the pair's own bounding square, so nothing here is a result.
+    game.handleMove(at(game, { x: 0.6, y: -0.6 }).x, at(game, { x: 0.6, y: -0.6 }).y);
+    game.handleUp();
+
     expect(bestAt(game.session, 2)).toBeUndefined();
     game.destroy();
   });

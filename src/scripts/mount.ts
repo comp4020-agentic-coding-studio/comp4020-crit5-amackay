@@ -20,12 +20,14 @@ import {
   type Extent,
   type ViewTransform,
 } from "../game/view";
-import { par, thresholds } from "../game/score";
+import { par, stars, thresholds, type Stars } from "../game/score";
 import { BALL_RADIUS, MAX_LEVEL, type Ball, type Side } from "../game/types";
 import {
   createChrome,
   renderAdvance,
+  flyStar,
   renderGauge,
+  renderStars,
   renderLevels,
   renderScreen,
   type Chrome,
@@ -257,6 +259,17 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   /** Height of one chrome bar, in screen pixels: where the tie starts. */
   let barHeight = 0;
   /**
+   * Stars won since this level was entered, which is what the display shows.
+   * Per visit rather than from `bests`, so a device handed over on level one
+   * starts with none however good the saved best is --- and monotonic within a
+   * visit, so pulling the box back open loses the box's size, not the star.
+   *
+   * Seeded rather than animated on entry: re-entering a beaten level restores
+   * the arrangement that beat it, so the stars are already true and nothing has
+   * just been won.
+   */
+  let earned: Stars = starsOnScreen();
+  /**
    * The largest side a drag on the handle may reach: the side whose outer wall
    * faces land on the frame's edge. A drag beyond this would push the box, and
    * its corner, out of the play space.
@@ -310,17 +323,42 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   function draw(): void {
     render(surface, session.balls, session.side, view, raisedBall());
     renderLevels(chrome.levels, histogramRows(session), { onSelect: goToLevel });
+    const fits = fitsNow(session.balls, session.side);
     const t = thresholds(session.level);
     renderGauge(chrome.gauge, chrome.tie, {
       scale: view.scale,
       side: session.side,
       thresholds: [t.three, t.two, t.one],
-      fits: fitsNow(session.balls, session.side),
+      fits,
       boxTop: view.originY - (session.side / 2) * view.scale,
       barBottom: barHeight,
     });
+    // The gauge has just been positioned, so a star that flies now leaves from
+    // where its size actually is on the bar.
+    const won = starsOnScreen();
+    if (won > earned) {
+      for (let rank = earned + 1; rank <= won; rank++) flyStar(chrome, rank);
+      earned = won;
+    }
+    renderStars(chrome.stars, earned);
     renderScreen(chrome, picking);
     renderAdvance(chrome.advance, canAdvance() && !picking);
+  }
+
+  /** What the box on screen is worth right now, or none if it does not hold
+   *  what is in it. */
+  function starsOnScreen(): Stars {
+    if (!fitsNow(session.balls, session.side)) return 0;
+    return stars(session.level, session.side);
+  }
+
+  /**
+   * Keep a result. Called from the end of a compact and, while a handle drag is
+   * under way, from every move the arrangement still fits --- so squeezing the
+   * box down by hand is a way of scoring and not just a way of setting a target.
+   */
+  function keepResult(side: Side, balls: readonly Ball[]): void {
+    session = record(session, side, balls);
   }
 
   /** Open or close the level-select screen. The game underneath keeps running:
@@ -348,6 +386,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     picking = false;
     session = enterLevel(session, n);
     if (session.level !== before) beginZoom();
+    earned = starsOnScreen();
     commit();
     refreshView();
     draw();
@@ -357,6 +396,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
   function advanceLevel(): void {
     const before = session.level;
     session = advance(session);
+    earned = starsOnScreen();
     if (session.level !== before) {
       beginZoom();
       pendingDrop = { index: session.balls.length - 1 };
@@ -432,7 +472,7 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
           // scoreable one until the box comes back out far enough to hold it.
           session = { ...session, side: closing.target, balls: closing.finalBalls };
           if (fitsNow(closing.finalBalls, closing.target)) {
-            session = record(session, closing.target, closing.finalBalls);
+            keepResult(closing.target, closing.finalBalls);
           }
           closing = null;
           commit();
@@ -515,6 +555,13 @@ export function createGame(container: HTMLElement, opts: GameOptions = {}): Game
     const world = screenToWorld(view, x, y);
     const side = Math.min(maxSide, Math.max(MIN_SIDE, 2 * Math.max(Math.abs(world.x), Math.abs(world.y))));
     session = { ...session, side };
+    // Squeezing the box down by hand is a result the moment the arrangement
+    // still fits what it has been pulled to, so a star can be won mid-drag.
+    // record() keeps the better of the two, so dragging back out never undoes
+    // one, and a drag tighter than the balls fit records nothing at all --- the
+    // tightest a drag can claim is the arrangement's own bounding size, which
+    // is what a click computes anyway.
+    if (fitsNow(session.balls, side)) keepResult(side, session.balls);
     draw();
   }
 

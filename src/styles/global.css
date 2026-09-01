@@ -34,6 +34,13 @@
   --bar-h: 4.5rem;
   --gutter: 1rem;
   --disc: 56px;
+
+  /* One star, drawn three times: on the size bar at the size that earns it, in
+     the display once it has been, and on the copy that travels between them. */
+  --star-shape: polygon(
+    50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%,
+    50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%
+  );
   color-scheme: light;
 }
 
@@ -359,10 +366,7 @@ h1 {
   margin-left: calc(var(--star) / -2);
   background: var(--ink);
   opacity: 0.62;
-  clip-path: polygon(
-    50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%,
-    50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%
-  );
+  clip-path: var(--star-shape);
 }
 
 /* A shorter bar has less room above the track for the three lanes. After the
@@ -377,6 +381,80 @@ h1 {
 #gauge .tick[data-rank="3"] { --rank: 3; }
 #gauge .tick[data-rank="2"] { --rank: 2; }
 #gauge .tick[data-rank="1"] { --rank: 1; }
+
+/* What has been won at this level, sitting immediately left of the size bar so
+   the two read as one thing: the sizes to beat on the right, what beating them
+   got you on the left. Right-aligned to the centre, which is where the bar
+   starts.
+
+   A won star is solid and an unwon one is a ghost of the same shape, rather
+   than a true outline: an outline needs a hole, and the hole would have to be
+   painted in whatever the carpet happens to be behind it, which is a gradient. */
+#stars {
+  position: absolute;
+  right: calc(50% + 0.75rem);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 6px;
+  --slot: 22px;
+}
+
+#stars[hidden] {
+  display: none;
+}
+
+#stars .star {
+  width: var(--slot);
+  height: var(--slot);
+  background: var(--ink);
+  opacity: 0.16;
+  clip-path: var(--star-shape);
+}
+
+#stars .star.is-won {
+  opacity: 0.85;
+}
+
+/* The copy that travels: from the size on the bar that earned the star to the
+   slot that now holds it, swelling on the way. Positioned and sized in pixels
+   by chrome.ts, which measures both ends --- the one place in the chrome that
+   reads the layout, because an animation between two places has to know both. */
+.fly {
+  position: fixed;
+  z-index: 4;
+  pointer-events: none;
+  background: var(--ink);
+  clip-path: var(--star-shape);
+  animation: fly 520ms cubic-bezier(0.33, 0.85, 0.35, 1) forwards;
+}
+
+@keyframes fly {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.62;
+  }
+
+  45% {
+    transform:
+      translate(calc(var(--dx) * 0.45), calc(var(--dy) * 0.45 - 16px))
+      scale(calc(var(--grow) * 1.35));
+    opacity: 1;
+  }
+
+  100% {
+    transform: translate(var(--dx), var(--dy)) scale(var(--grow));
+    opacity: 0.85;
+  }
+}
+
+/* The star still lands --- renderStars fills the slot either way. What is
+   dropped is the trip. */
+@media (prefers-reduced-motion: reduce) {
+  .fly {
+    display: none;
+  }
+}
 
 /* The linkage: a dotted line from the size bar's mark down to the box's top
    right interior corner, at the one screen x they share. */

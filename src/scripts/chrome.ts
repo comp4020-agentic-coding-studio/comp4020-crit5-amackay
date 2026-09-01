@@ -11,6 +11,8 @@ export interface Chrome {
   screen: HTMLElement;
   /** The list of levels inside that screen. */
   levels: HTMLElement;
+  /** Three slots, filled by the stars won at this level. */
+  stars: HTMLElement;
   /** The size bar: a half-scale ruler of the box, in the top bar. */
   gauge: HTMLElement;
   /** The dotted line tying the size bar's mark to the box's right face. */
@@ -36,6 +38,16 @@ export function createChrome(doc: Document): Chrome {
     doc.querySelector<HTMLElement>("#levels") ?? appendTo(doc, screen, "nav", "levels");
   levels.setAttribute("aria-label", "Levels");
 
+  const stars =
+    doc.querySelector<HTMLElement>("#stars") ?? appendTo(doc, doc.body, "div", "stars");
+  if (!stars.querySelector(".star")) {
+    for (const rank of [1, 2, 3]) {
+      const slot = makeSpan(doc, "star");
+      slot.dataset.rank = String(rank);
+      stars.append(slot);
+    }
+  }
+
   const gauge =
     doc.querySelector<HTMLElement>("#gauge") ?? appendTo(doc, doc.body, "div", "gauge");
   if (!gauge.querySelector(".track")) {
@@ -58,7 +70,7 @@ export function createChrome(doc: Document): Chrome {
   const advance = button(doc, "advance", "Next level");
   advance.hidden = true;
 
-  return { screen, levels, gauge, tie, pick, back, advance };
+  return { screen, levels, stars, gauge, tie, pick, back, advance };
 }
 
 /** Find or make one of the chrome's buttons, and name it for a screen reader. */
@@ -193,6 +205,48 @@ function fillRow(el: HTMLElement, row: HistogramRow): void {
   });
 }
 
+/** Fill the first `won` slots of the star display, and empty the rest. */
+export function renderStars(el: HTMLElement, won: number): void {
+  el.querySelectorAll<HTMLElement>(".star").forEach((slot, k) => {
+    slot.classList.toggle("is-won", k < won);
+  });
+}
+
+/**
+ * A star that has just been won, travelling from the size on the bar that
+ * earned it to the slot that now holds it.
+ *
+ * The one place in the chrome that measures anything. Everything else here
+ * writes and never reads back, but an animation between two places on screen
+ * has to know both, and neither is derivable from the box's transform: one is
+ * laid out by the flex row, the other by the bar's own scale. Measured once
+ * when the star is won rather than per frame.
+ *
+ * Does nothing without a layout --- under jsdom every rect is zero-sized, and a
+ * flight from nowhere to nowhere is worse than no flight.
+ */
+export function flyStar(chrome: Chrome, rank: number): void {
+  const source = chrome.gauge.querySelector<HTMLElement>(`.tick[data-rank="${rank}"]`);
+  const target = chrome.stars.querySelector<HTMLElement>(`.star[data-rank="${rank}"]`);
+  if (!source || !target) return;
+  const from = source.getBoundingClientRect();
+  const to = target.getBoundingClientRect();
+  if (from.width === 0 || to.width === 0) return;
+
+  const doc = chrome.gauge.ownerDocument;
+  const fly = doc.createElement("div");
+  fly.className = "fly";
+  fly.style.left = `${from.left}px`;
+  fly.style.top = `${from.top}px`;
+  fly.style.width = `${from.width}px`;
+  fly.style.height = `${from.height}px`;
+  fly.style.setProperty("--dx", `${to.left + to.width / 2 - (from.left + from.width / 2)}px`);
+  fly.style.setProperty("--dy", `${to.top + to.height / 2 - (from.top + from.height / 2)}px`);
+  fly.style.setProperty("--grow", `${to.width / from.width}`);
+  fly.addEventListener("animationend", () => fly.remove());
+  doc.body.append(fly);
+}
+
 /** Show or hide the next-level button. The click listener is mount.ts's, so it
  * can be taken off again on destroy. */
 export function renderAdvance(button: HTMLButtonElement, visible: boolean): void {
@@ -210,6 +264,7 @@ export function renderScreen(chrome: Chrome, open: boolean): void {
   chrome.pick.hidden = open;
   chrome.gauge.hidden = open;
   chrome.tie.hidden = open;
+  chrome.stars.hidden = open;
 }
 
 function makeSpan(doc: Document, className: string): HTMLElement {

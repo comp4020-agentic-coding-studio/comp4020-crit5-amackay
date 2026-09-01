@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createChrome,
   renderAdvance,
+  flyStar,
   renderGauge,
+  renderStars,
   renderLevels,
   renderScreen,
 } from "./chrome";
@@ -120,6 +122,34 @@ describe("renderAdvance", () => {
     expect(button.hidden).toBe(false);
     renderAdvance(button, false);
     expect(button.hidden).toBe(true);
+  });
+});
+
+describe("the star display", () => {
+  it("fills from the left, one slot per star won", () => {
+    const { stars } = createChrome(document);
+    const won = () => [...stars.querySelectorAll(".star")].map((s) => s.classList.contains("is-won"));
+    renderStars(stars, 0);
+    expect(won()).toEqual([false, false, false]);
+    renderStars(stars, 2);
+    expect(won()).toEqual([true, true, false]);
+    renderStars(stars, 3);
+    expect(won()).toEqual([true, true, true]);
+  });
+
+  it("empties again when a fresh level is entered", () => {
+    const { stars } = createChrome(document);
+    renderStars(stars, 3);
+    renderStars(stars, 0);
+    expect(stars.querySelectorAll(".star.is-won")).toHaveLength(0);
+  });
+
+  it("flies nothing when there is no layout to fly across", () => {
+    // jsdom reports every rect as zero-sized. A flight from nowhere to nowhere
+    // would leave a star parked at the top left corner for half a second.
+    const chrome = createChrome(document);
+    flyStar(chrome, 3);
+    expect(document.querySelectorAll(".fly")).toHaveLength(0);
   });
 });
 
