@@ -9,7 +9,8 @@
     "preview": "astro preview",
     "typecheck": "astro check",
     "check": "pnpm typecheck && pnpm build && vitest run",
-    "check:evidence": "node scripts/check-evidence.ts",
+    "check:evidence": "node scripts/check-evidence.ts && node scripts/check-images.ts",
+    "images": "bash scripts/make-images.sh",
     "test": "vitest run"
   },
   "devDependencies": {

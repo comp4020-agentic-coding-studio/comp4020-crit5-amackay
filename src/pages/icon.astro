@@ -1,0 +1,20 @@
+---
+// A single still, drawn at the size this page is shot at. Not linked from
+// anywhere: it exists so the picture in public/ is a screenshot of the real
+// stylesheet and the real render.ts, and so re-taking it is one command.
+import "../styles/global.css";
+---
+
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Not a page: the source a shipped picture is screenshotted from. -->
+    <meta name="robots" content="noindex" />
+    <title>icon</title>
+  </head>
+  <body>
+    <div id="stage" data-n="3" data-margin="0.35"></div>
+    <script src="../scripts/draw-still.ts"></script>
+  </body>
+</html>
