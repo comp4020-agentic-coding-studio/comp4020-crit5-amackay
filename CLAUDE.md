@@ -126,10 +126,16 @@ from a previous week, where it silently 404s every asset on the live site.
   the loop depends on the delta --- and the score follows the arrangement, so
   this is not cosmetic. Fix it by taking the delta out of the loop --- a frame is
   a tick, not a duration --- not by loosening the tolerance.
-- **The level screen and the goal row draw the same `.level` markup.**
-  `renderLevels` fills a row's bar from the *recorded best*; `renderGoal` fills
-  it from the *box on screen*. Same element, two currencies --- so a change to
-  one has to say which it meant.
+- **Two bars, two scales, and they are not interchangeable.** The game screen's
+  size bar is drawn at `view.scale` --- the box's own scale --- which is what
+  makes its mark land on the box's right face and the dotted tie vertical. The
+  level screen's rows share one scale across all twenty, which is what makes
+  them comparable as a stack. A change to either has to say which it meant.
+- **A number the code computes and never draws is worth nothing.** `stars()`
+  was computed, stored in `bests` and rendered nowhere for the whole of the
+  first build, so a three-star packing and a one-star one looked identical.
+  Every test passed. When a rule produces a value the player is meant to act
+  on, find where it reaches the screen or it does not exist.
 - **An Astro `<style>` block is scoped by an attribute the compiler stamps on
   the markup it compiled**, so a rule there never matches an element
   `render.ts` created at runtime. Hiding the handle in the still pages' CSS
@@ -139,6 +145,17 @@ from a previous week, where it silently 404s every asset on the live site.
   declares anything at the top level throws `Identifier has already been
   declared` on the second run, and a bare `const top`/`const stage` collides
   with a DOM global on the first. Wrap every eval script in an IIFE.
+- **The game cannot be reset by clearing `localStorage` while its tab is open**
+  --- it rewrites within a frame, so a clear-then-reload always loses the race.
+  To test a first-time player's screen, use a browser session that has never
+  loaded the page (`agent-browser --session <new-name>`), not a clear. Two
+  findings were misread before this was worked out: a level that looked already
+  won on load, and a star animation that looked dead because the level was.
+- **A custom property overridden in a media query must come *after* the rule
+  that sets it.** `@media { #gauge { --star: 9px } }` up with the other
+  breakpoint values lost to a later plain `#gauge { --star: 11px }` at equal
+  specificity, silently and at every viewport. Put the override next to what it
+  overrides.
 - **A green test written from the same misreading as the code is worth
   nothing.** Three real bugs this week were covered by tests that asserted the
   wrong behaviour and passed; each was found by opening the page. When a test
